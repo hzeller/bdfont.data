@@ -24,26 +24,33 @@ extern "C" {
 
 #include <stdint.h>
 
-struct MetaGlyph {
-    int16_t codepoint;     // Unicode 16 code-point.
-    int8_t width;          // Individual width of this one.
+struct GlyphData {
+  int16_t codepoint;        // Unicode 16 code-point.
+  uint8_t width;            // Individual width of this one.
+  uint8_t x_offset;         // Where bytes start in x-direction.
+  uint8_t x_pixel;          // How many pixels we use in X-direction.
+  uint8_t page_offset : 4;  // Empty Y-pages skipped in data.
+  uint8_t pages : 4;        // pages of data filled with data.
+  // In total we use x_pixel * pages bytes starting from data_offset.
+  uint16_t data_offset;     // Pointer into bits array.
 } __attribute__((packed));
 
-struct MetaFont {
-    uint16_t available_glyphs; // Number of glyphs in this font.
-    uint8_t pages;             // height in 'pages', essentially 8 bit stripes
-    uint8_t font_width;        // Widest glyph in this font. Determines bytes.
-    uint8_t glyph_data_size;   // Glyph size (sizeof(ProgmemGlyph<W,H>))
+struct FontData {
+  uint16_t available_glyphs; // Number of glyphs in this font.
+  uint8_t pages;             // max height in 'pages', essentially 8 bit stripes
+  const uint8_t *bits;
+  const struct GlyphData *glyphs;
 } __attribute__((packed));
 
 #ifdef __cplusplus
 }
 #endif
 
+// If this code is used in AVR, data is stuffed away into PROGMEM memory.
 #ifdef AVR
-#   include <avr/pgmspace.h>
+#  include <avr/pgmspace.h>
 #else
-#   define PROGMEM
+#  define PROGMEM
 #endif
 
 #endif // SSD1306_FONT_SUPPORT_

@@ -1,3 +1,4 @@
+CXXFLAGS=-Wall -Wextra -O3
 OBJECTS=generate-compiled-font.o bdf-font.o
 
 generate-compiled-font: $(OBJECTS)
