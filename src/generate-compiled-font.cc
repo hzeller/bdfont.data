@@ -313,6 +313,11 @@ int main(int argc, char *argv[]) {
     std::set<uint16_t> relevant_chars;
     for (const char *utfchars = utf8_text; *utfchars; /**/) {
         const uint32_t cp = utf8_next_codepoint(utfchars);
+        if (font.CharacterWidth(cp) < 0) {
+            fprintf(stderr, "Excluding codepoint U+%04x, which is not "
+                    "included in font\n", cp);
+            continue;
+        }
         relevant_chars.insert(cp);
     }
 

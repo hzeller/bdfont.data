@@ -53,8 +53,9 @@ struct FontData {
 #  define PROGMEM
 #endif
 
-/* Emit the bytes for a glyph with the given basic plade unicode "codepoint"
+/* Emit the bytes for a glyph with the given basic plane unicode "codepoint"
  * Returns width that has been drawn or 0 if the character was not defined.
+ *
  * This calls callbacks to two functions: one to start a new stripe, providing
  * information about which stripe and the expected width. Then an EmitFun() call
  * that emits a single byte at given x-position representing 8 vertical pixels.
