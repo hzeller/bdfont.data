@@ -44,11 +44,17 @@ struct FontData {
 } __attribute__((packed));
 
 /* If this code is used in AVR, data is stuffed away into PROGMEM memory. */
-#ifdef AVR
+#ifdef __AVR__
 #  include <avr/pgmspace.h>
 #else
 #  define PROGMEM
 #endif
+
+/* Find the GlyphData for the given "codepoint" in "font". If none exist,
+ * returns NULL. Note: on AVR systems, this points to PROGMEM memory.
+ */
+const struct GlyphData *find_glyph(const struct FontData *font,
+                                   int16_t codepoint);
 
 #ifdef __cplusplus
 }
