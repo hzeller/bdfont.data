@@ -11,30 +11,35 @@ for embedded systems with little flash memory.
 
 Fonts can have any Unicode characters from the Basic Multilingual Plane (the
 first 16 bit), so it is easy to include special characters such as μ or π.
-Because of the vast choice, you have to specify _which_ of these you'd like
+Because of the vast choice, you have to specify _which_ characters you'd like
 to include into the compiled code to keep data compact. It is perfectly
 ok to have 'sparse' fonts that only contain the characters you need for
 your program strings.
 
-```
+```bash
 make -C src
-# Invoking tool. Multiple same characters are only included once.
+# Invoking tool. Multiple instances of same character is only included once.
 src/generate-compiled-font path/to/font.bdf myfontname "01234567890μHelloWorld"
 ```
 
-This generates a new files `font-myfontname.{h,c}`. Copy this together with
+This generates the files `font-myfontname.{h,c}`. Copy this together with
 the runtime-support `client-lib/font-support.{h,c}` into your project and
-compile there.
+compile there. Write some adapting code to your screen using the provided
+function.
 
 The `font-support` provides the runtime way to access the generated font.
 Since the code-generation might evolve, font-support should be copied whenever
 a font is generated to make sure it is compatible with that version.
 
 At this point, the generated code is pretty specific to represent fonts in
-'stripes', needed for SSD1306 type of displays.
+'stripes', needed for SSD1306 type of displays: Each byte represents a vertical
+set of 8 pixels which is a single pixel wide in X-direction. Thus it is pretty
+easy to scroll text in X-direction; in y-direction only in
+multiples of 8 unless bit-shifting is applied.
+Fonts might need multiple of these stripes.
 
 The runtime-support currently is a pretty simple function `EmitGlyph()` that
-expects callbacks with the bitmap data:
+expects callbacks that it calls with the bitmap data:
 
 ```c
 /* Emit the bytes for a glyph with the given basic plane unicode "codepoint"
