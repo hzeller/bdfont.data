@@ -10,6 +10,9 @@ for embedded systems.
 To get the most compact representation, you give the tool only the characters
 you need.
 
+At this point, it represents fonts in stripes, needed for SSD1306 type of
+displays.
+
 ```
 make -C src
 # Invoking tool

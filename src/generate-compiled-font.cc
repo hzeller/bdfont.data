@@ -26,7 +26,7 @@ static constexpr char kHeaderTemplate[] =
 /* font containing %d characters */
 extern const struct FontData PROGMEM font_%s;
 
-#endif // FONT_%s_
+#endif /* FONT_%s_ */
 )";
 
 static constexpr char kCodeHeader[] =
