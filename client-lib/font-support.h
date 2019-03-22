@@ -2,6 +2,8 @@
  *
  * Copyright (C) 2019 Henner Zeller <h.zeller@acm.org>
  *
+ * This is part of http://github.com/hzeller/bdfont.data
+ *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -16,8 +18,8 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-#ifndef SSD1306_FONT_SUPPORT_
-#define SSD1306_FONT_SUPPORT_
+#ifndef _BDFONT_DATA_FONT_SUPPORT_
+#define _BDFONT_DATA_FONT_SUPPORT_
 
 #ifdef __cplusplus
 extern "C" {
@@ -33,8 +35,8 @@ struct GlyphData {
   uint8_t width;            /* Individual width of this one. */
   uint8_t page_offset : 4;  /* Empty Y-pages skipped in data. */
   uint8_t pages : 4;        /* pages of data filled with data. */
-  /* In total we use x_pixel * pages bytes starting from data_offset. */
-  uint16_t data_offset;     /* Pointer into bits array. */
+  uint16_t data_offset : 14; /* Pointer into bits array. */
+  uint8_t rle_type : 2;     /* 0=none; 1=4x2-bit count; 2=2x4-bit count */
 } __attribute__((packed));
 
 struct FontData {
@@ -54,9 +56,9 @@ struct FontData {
 /* Emit the bytes for a glyph with the given basic plade unicode "codepoint"
  * Returns width that has been drawn or 0 if the character was not defined.
  * This calls callbacks to two functions: one to start a new stripe, providing
- * information about which stripe and the expected width. Then a single call
- * that emits a single byte representing 8 vertical pixels.
- * Both functions get passed in some opaque user-data.
+ * information about which stripe and the expected width. Then an EmitFun() call
+ * that emits a single byte at given x-position representing 8 vertical pixels.
+ * Both functions get passed in some void pointer with user-data.
  */
 typedef void (*StartStripe)(uint8_t stripe, uint8_t width, void *userdata);
 typedef void (*EmitFun)(uint8_t x, uint8_t bits, void *userdata);
@@ -67,4 +69,4 @@ uint8_t EmitGlyph(const struct FontData *font, uint16_t codepoint,
 }
 #endif
 
-#endif /* SSD1306_FONT_SUPPORT_ */
+#endif /* _BDFONT_DATA_FONT_SUPPORT_ */

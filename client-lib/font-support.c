@@ -1,6 +1,7 @@
 /* -*- mode: c; c-basic-offset: 2; indent-tabs-mode: nil; -*-
  *
  * Copyright (C) 2019 Henner Zeller <h.zeller@acm.org>
+ * This is part of http://github.com/hzeller/bdfont.data
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -65,28 +66,37 @@ uint8_t EmitGlyph(const struct FontData *font, uint16_t codepoint,
   for (/**/; page < glyph->page_offset+glyph->pages; ++page) {
     start_stripe(page, glyph->width, userdata);
     x = 0;
-    while (x < glyph->width) {
+    if (glyph->rle_type == 0) {
+      for (x = 0; x < glyph->width; ++x) {
 #ifdef __AVR__
-      uint8_t runlengths = pgm_read_byte(bits++);
-      uint8_t data_byte = pgm_read_byte(bits++);
+        uint8_t data_byte = pgm_read_byte(bits++);
 #else
-      uint8_t runlengths = *bits++;
-      uint8_t data_byte = *bits++;
+        uint8_t data_byte = *bits++;
 #endif
-      uint8_t first_bits = (runlengths >> 4);
-      uint8_t i;
-      for (i = 0; i < first_bits; ++i, ++x) {
         emit(x, data_byte, userdata);
       }
-      uint8_t last_bits = (runlengths & 0x0f);
-      if (last_bits > 0) {
+    }
+    else {
+      const uint8_t mask = (glyph->rle_type == 1) ? 0x03 : 0x0f;
+      const uint8_t shift = (glyph->rle_type == 1) ? 2 : 4;
+      while (x < glyph->width) {
 #ifdef __AVR__
-        data_byte = pgm_read_byte(bits++);
+        uint8_t runlengths = pgm_read_byte(bits++);
 #else
-        data_byte = *bits++;
+        uint8_t runlengths = *bits++;
 #endif
-        for (i = 0; i < last_bits; ++i, ++x) {
-          emit(x, data_byte, userdata);
+        while (runlengths) {
+          uint8_t byte_count = runlengths & mask;
+#ifdef __AVR__
+          uint8_t data_byte = pgm_read_byte(bits++);
+#else
+          uint8_t data_byte = *bits++;
+#endif
+          uint8_t i;
+          for (i = 0; i < byte_count; ++i, ++x) {
+            emit(x, data_byte, userdata);
+          }
+          runlengths >>= shift;
         }
       }
     }
