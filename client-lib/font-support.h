@@ -31,8 +31,6 @@ extern "C" {
 struct GlyphData {
   int16_t codepoint;        /* Unicode 16 code-point. */
   uint8_t width;            /* Individual width of this one. */
-  uint8_t x_offset;         /* Where bytes start in x-direction. */
-  uint8_t x_pixel;          /* How many pixels we use in X-direction. */
   uint8_t page_offset : 4;  /* Empty Y-pages skipped in data. */
   uint8_t pages : 4;        /* pages of data filled with data. */
   /* In total we use x_pixel * pages bytes starting from data_offset. */

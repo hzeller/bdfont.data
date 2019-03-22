@@ -99,13 +99,10 @@ public:
                         g.codepoint);
             }
             fprintf(out_, " .width=%2d, "
-                    ".x_offset = %2d, .x_pixel = %2d, "
                     ".page_offset = %d, .pages = %d, "
-                    ".data_offset = %4d}, /* %3d bytes */\n",
+                    ".data_offset = %4d},\n",
                     g.width,
-                    g.x_offset, g.x_pixel,
-                    g.page_offset, g.pages, g.data_offset,
-                    g.pages * g.x_pixel);
+                    g.page_offset, g.pages, g.data_offset);
         }
 
         fprintf(out_, "};\n\n");
@@ -115,8 +112,6 @@ protected:
     // Bitcanvas interface
     void SetPixel(int x, int y, bool on) final {
         if (!on) return;
-        if (x < current_glyph_.x_offset) current_glyph_.x_offset = x;
-        if (x >= last_x_) last_x_ = x+1;
         y -= offset_y_;
         assert(y >= 0);
         int page = y / 8;
@@ -127,12 +122,80 @@ protected:
         data_[page * kMaxFontWidth + x] |= (1 << bit);
     }
 
+    class Compressor {
+    public:
+        void AddByte(FILE *out, uint8_t b) {
+            if (count[current_nibble] == 0) {
+                bytes[current_nibble] = b;
+                count[current_nibble] = 1;
+            }
+            else if (bytes[current_nibble] == b) {
+                if (count[current_nibble] < 15)
+                    count[current_nibble]++;
+                else if (current_nibble == 0) {
+                    current_nibble = 1;
+                    bytes[current_nibble] = b;
+                    count[current_nibble] = 1;
+                }
+                else if (current_nibble == 1) {
+                    Emit(out);
+                    current_nibble = 0;
+                    bytes[current_nibble] = b;
+                    count[current_nibble] = 1;
+                }
+            }
+            else if (bytes[current_nibble] != b) {
+                if (current_nibble == 0) {
+                    current_nibble = 1;
+                    bytes[current_nibble] = b;
+                    count[current_nibble] = 1;
+                }
+                else if (current_nibble == 1) {
+                    Emit(out);
+                    current_nibble = 0;
+                    bytes[current_nibble] = b;
+                    count[current_nibble] = 1;
+                }
+            }
+        }
+
+        int FinishLine(FILE *out) {
+            Emit(out);
+            int ret = emitted_bytes;
+            emitted_bytes = 0;
+            return ret;
+        }
+
+        void Emit(FILE *out) {
+            if (count[1] > 0) {
+                fprintf(out, "0x%02x,0x%02x,0x%02x,",
+                        (count[0] << 4) | count[1], bytes[0], bytes[1]);
+                emitted_bytes += 3;
+            }
+            else {
+                fprintf(out, "0x%02x,0x%02x,",
+                        (count[0] << 4), bytes[0]);
+                emitted_bytes += 2;
+            }
+            count[0] = count[1] = 0;
+        }
+
+    private:
+        uint8_t current_nibble = 0;
+        uint8_t count[2] = {};
+        uint8_t bytes[2];
+        int emitted_bytes = 0;
+    };
+
+    // RLE
+    // Either encoded as 2 bytes or 3 bytes.
+    // The first byte is divided into two nibbles: to top nibble shows
+    // how many times the second byte is repeated. The lower nibble shows how
+    // many times the third byte is repeated. If the lower nibble is 0, then
+    // the third byte is skipped.
     void FinishChar(uint16_t codepoint) {
         current_glyph_.codepoint = codepoint;
         current_glyph_.data_offset = emitted_bytes_;
-        if (last_x_ > 0) {
-            current_glyph_.x_pixel = last_x_ - current_glyph_.x_offset;
-        }
         if (last_page_ > 0) {
             current_glyph_.pages = last_page_ - current_glyph_.page_offset;
         }
@@ -145,12 +208,21 @@ protected:
             fprintf(out_, "/* codepoint 0x%04x */\n", current_glyph_.codepoint);
         }
         for (int p = 0; p < current_glyph_.pages; ++p) {
+#if 0
             for (int d = 0; d < current_glyph_.x_pixel; ++d) {
                 fprintf(out_, "0x%02x,", data_[(p+current_glyph_.page_offset)
                                                * kMaxFontWidth
                                                + d + current_glyph_.x_offset]);
                 ++emitted_bytes_;
             }
+#else
+            Compressor c;
+            for (int x = 0; x < current_glyph_.width; ++x) {
+                c.AddByte(out_, data_[(p+current_glyph_.page_offset)
+                                     * kMaxFontWidth + x]);
+            }
+            emitted_bytes_ += c.FinishLine(out_);
+#endif
             fprintf(out_, "\n");
         }
     }
@@ -159,11 +231,8 @@ private:
     void Reset(int width) {
         bzero(data_, kMaxFontWidth * pages_);
         current_glyph_.width = width;
-        current_glyph_.x_offset = width - 1;
-        current_glyph_.x_pixel = 0;
         current_glyph_.page_offset = pages_ - 1;
         current_glyph_.pages = 0;
-        last_x_ = -1;
         last_page_ = -1;
     }
 
@@ -171,7 +240,7 @@ private:
     const int offset_y_;
     const int pages_;
 
-    int last_x_, last_page_;
+    int last_page_;
 
     uint8_t *data_;
     int emitted_bytes_;

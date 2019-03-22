@@ -65,15 +65,31 @@ uint8_t EmitGlyph(const struct FontData *font, uint16_t codepoint,
   for (/**/; page < glyph->page_offset+glyph->pages; ++page) {
     start_stripe(page, glyph->width, userdata);
     x = 0;
-    for (/**/; x < glyph->x_offset; ++x) emit(x, 0x00, userdata);
-    for (/**/; x < glyph->x_offset+glyph->x_pixel; ++x) {
+    while (x < glyph->width) {
 #ifdef __AVR__
-      emit(x, pgm_read_byte(bits++), userdata);
+      uint8_t runlengths = pgm_read_byte(bits++);
+      uint8_t data_byte = pgm_read_byte(bits++);
 #else
-      emit(x, *bits++, userdata);
+      uint8_t runlengths = *bits++;
+      uint8_t data_byte = *bits++;
 #endif
+      uint8_t first_bits = (runlengths >> 4);
+      uint8_t i;
+      for (i = 0; i < first_bits; ++i, ++x) {
+        emit(x, data_byte, userdata);
+      }
+      uint8_t last_bits = (runlengths & 0x0f);
+      if (last_bits > 0) {
+#ifdef __AVR__
+        data_byte = pgm_read_byte(bits++);
+#else
+        data_byte = *bits++;
+#endif
+        for (i = 0; i < last_bits; ++i, ++x) {
+          emit(x, data_byte, userdata);
+        }
+      }
     }
-    for (/**/; x < glyph->width; ++x) emit(x, 0x00, userdata);
   }
 
   /* Remaining, empty pages */
