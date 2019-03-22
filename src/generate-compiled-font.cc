@@ -5,13 +5,13 @@
 #include <string.h>
 #include <strings.h>
 
-#include <string>
 #include <set>
+#include <string>
 #include <vector>
 
 #include "bdf-font.h"
-#include "utf8-internal.h"
 #include "font-support.h"
+#include "utf8-internal.h"
 
 // params: 4x fontname
 static constexpr char kHeaderTemplate[] =

@@ -1,4 +1,4 @@
-CXXFLAGS=-Wall -Wextra -O3 -I../client-lib
+CXXFLAGS=-Wall -Wextra -W -O3 -I../client-lib
 OBJECTS=generate-compiled-font.o bdf-font.o
 
 generate-compiled-font: $(OBJECTS)
