@@ -1,4 +1,21 @@
-
+/* -*- mode: c; c-basic-offset: 2; indent-tabs-mode: nil; -*-
+ *
+ * Copyright (C) 2019 Henner Zeller <h.zeller@acm.org>
+ * This is part of http://github.com/hzeller/bdfont.data
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <https://www.gnu.org/licenses/>.
+ */
 #include <assert.h>
 #include <getopt.h>
 #include <libgen.h>
@@ -164,7 +181,7 @@ public:
     }
     void NextChar() { count_++; }
 
-    int pages() const { return (max_height_ - min_height_ +8)/8; }
+    int stripes() const { return (max_height_ - min_height_ +8)/8; }
     int offset_y() const { return min_height_; }
     bool baseline_satisfied() const { return baseline_satisfied_; }
 
@@ -180,10 +197,10 @@ class GlyphEmitter : protected BitCanvas {
     static constexpr int kMaxFontWidth = 64;  // limit of our bdf-font
 public:
     GlyphEmitter(FILE *out,
-                 int offset_y, int pages)
+                 int offset_y, int stripes)
         : out_(out),
-          offset_y_(offset_y), pages_(pages),
-          data_(new uint8_t [kMaxFontWidth * pages_]), emitted_bytes_(0) {
+          offset_y_(offset_y), stripes_(stripes),
+          data_(new uint8_t [kMaxFontWidth * stripes_]), emitted_bytes_(0) {
         fprintf(out_, "static const uint8_t PROGMEM _font_data[] = {");
     }
 
@@ -207,11 +224,11 @@ public:
                         g.codepoint);
             }
             fprintf(out_, ".width=%2d, "
-                    ".page_offset=%d, .pages=%d, "
+                    ".stripe_offset=%d, .stripes=%d, "
                     ".left_margin=%d, .right_margin=%d, "
                     ".rle_type=%d, .data_offset=%4d},\n",
                     g.width,
-                    g.page_offset, g.pages, g.left_margin, g.right_margin,
+                    g.stripe_offset, g.stripes, g.left_margin, g.right_margin,
                     g.rle_type, g.data_offset);
         }
 
@@ -224,14 +241,14 @@ protected:
         if (!on) return;
         y -= offset_y_;
         assert(y >= 0);  // Otherwise the offset has been calculated wrong
-        int page = y / 8;
+        int stripe = y / 8;
         int bit = y % 8;
-        if (page < g_.page_offset)
-            g_.page_offset = page;
-        if (page >= last_page_) last_page_ = page+1;
+        if (stripe < g_.stripe_offset)
+            g_.stripe_offset = stripe;
+        if (stripe >= last_stripe_) last_stripe_ = stripe+1;
         if (x < min_x_) min_x_ = x;
         if (x > max_x_) max_x_ = x;
-        data_[page * kMaxFontWidth + x] |= (1 << bit);
+        data_[stripe * kMaxFontWidth + x] |= (1 << bit);
     }
 
     // RLE
@@ -243,10 +260,10 @@ protected:
     void FinishChar(uint16_t codepoint) {
         g_.codepoint = codepoint;
         g_.data_offset = emitted_bytes_;
-        if (last_page_ > 0) {
-            g_.pages = last_page_ - g_.page_offset;
+        if (last_stripe_ > 0) {
+            g_.stripes = last_stripe_ - g_.stripe_offset;
         }
-        if (g_.pages > 0) {
+        if (g_.stripes > 0) {
             g_.left_margin = (min_x_ <= 0xf) ? min_x_ : 0xf;
             int right_margin = g_.width - max_x_ - 1;
             g_.right_margin = (right_margin <= 0xf) ? right_margin : 0xf;
@@ -256,13 +273,13 @@ protected:
         RLECompressor c4(4);
 
         // First, let's test if RLE will bring us anything, and which is better
-        const int baseline_bytes = g_.pages*g_.width;
+        const int baseline_bytes = g_.stripes*g_.width;
         int c2_bytes = 0;
         int c4_bytes = 0;
         int x;
-        for (int p = 0; p < g_.pages; ++p) {
+        for (int p = 0; p < g_.stripes; ++p) {
             for (x = g_.left_margin; x < g_.width-g_.right_margin; ++x) {
-                uint8_t b = data_[(p+g_.page_offset) * kMaxFontWidth + x];
+                uint8_t b = data_[(p+g_.stripe_offset) * kMaxFontWidth + x];
                 c2.AddByte(NULL, b);
                 c4.AddByte(NULL, b);
             }
@@ -285,10 +302,10 @@ protected:
 
         if (!should_use_compression) {
             g_.rle_type = 0;
-            for (int p = 0; p < g_.pages; ++p) {
+            for (int p = 0; p < g_.stripes; ++p) {
                 fprintf(out_, "  ");
                 for (x = g_.left_margin; x < g_.width - g_.right_margin; ++x) {
-                    fprintf(out_, "0x%02x,", data_[(p+g_.page_offset)
+                    fprintf(out_, "0x%02x,", data_[(p+g_.stripe_offset)
                                                    * kMaxFontWidth + x]);
                     emitted_bytes_++;
                 }
@@ -298,10 +315,10 @@ protected:
         else {
             RLECompressor *c = (c2_bytes < c4_bytes) ? &c2 : &c4;
             g_.rle_type = (c->sections() == 4) ? 1 : 2;
-            for (int p = 0; p < g_.pages; ++p) {
+            for (int p = 0; p < g_.stripes; ++p) {
                 fprintf(out_, "  ");
                 for (x = g_.left_margin; x < g_.width - g_.right_margin; ++x) {
-                    c->AddByte(out_, data_[(p+g_.page_offset)
+                    c->AddByte(out_, data_[(p+g_.stripe_offset)
                                            * kMaxFontWidth + x]);
                 }
                 emitted_bytes_ += c->FinishLine(out_);
@@ -313,21 +330,21 @@ protected:
 
 private:
     void Reset(int width) {
-        bzero(data_, kMaxFontWidth * pages_);
+        bzero(data_, kMaxFontWidth * stripes_);
         g_.width = width;
-        g_.page_offset = pages_ - 1;
-        g_.pages = 0;
+        g_.stripe_offset = stripes_ - 1;
+        g_.stripes = 0;
         g_.left_margin = g_.right_margin = 0;
-        last_page_ = -1;
+        last_stripe_ = -1;
         min_x_ = width;
         max_x_ = 0;
     }
 
     FILE *const out_;
     const int offset_y_;
-    const int pages_;
+    const int stripes_;
 
-    int last_page_;
+    int last_stripe_;
     int min_x_, max_x_;
 
     uint8_t *data_;
@@ -419,7 +436,7 @@ int main(int argc, char *argv[]) {
             fontname);
     GlyphEmitter glyph_emitter(code_file,
                                meta_collector.offset_y(),
-                               meta_collector.pages());
+                               meta_collector.stripes());
     for (auto c : relevant_chars) {
         glyph_emitter.Emit(font, c);
     }
@@ -430,11 +447,11 @@ int main(int argc, char *argv[]) {
     fprintf(code_file, "const struct FontData PROGMEM font_%s = {\n"
             "  .available_glyphs = %d,\n"
             "  .baseline = %d,\n"
-            "  .pages = %d,\n"
+            "  .stripes = %d,\n"
             "  .bits = _font_data,\n"
             "  .glyphs = _font_glyphs\n};\n",
             fontname, (int)relevant_chars.size(),
             font.baseline() - meta_collector.offset_y(),
-            meta_collector.pages());
+            meta_collector.stripes());
     fclose(code_file);
 }

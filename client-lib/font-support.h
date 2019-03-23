@@ -35,8 +35,8 @@ struct GlyphData {
   uint8_t width;             /* Individual width of this one. */
   uint8_t left_margin  : 4;  /* Left empty space */
   uint8_t right_margin : 4;  /* Right empty space */
-  uint8_t page_offset  : 4;  /* Empty Y-pages skipped in data. */
-  uint8_t pages        : 4;  /* pages of data filled with data. */
+  uint8_t stripe_offset: 4;  /* Empty Y-stripes skipped in data. */
+  uint8_t stripes      : 4;  /* stripes of data filled with data. */
   uint16_t data_offset : 14; /* Pointer into bits array. */
   uint8_t rle_type     : 2;  /* 0=none; 1=4x2-bit count; 2=2x4-bit count */
 } __attribute__((packed));
@@ -44,7 +44,7 @@ struct GlyphData {
 struct FontData {
   uint16_t available_glyphs; /* Number of glyphs in this font. */
   uint8_t baseline;          /* Position of baseline from rendering top */
-  uint8_t pages;             /* max height in 'pages', 8 bit stripes */
+  uint8_t stripes;           /* height in 8px high stripes. */
   const uint8_t *bits;
   const struct GlyphData *glyphs;
 } __attribute__((packed));

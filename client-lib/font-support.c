@@ -55,17 +55,17 @@ uint8_t EmitGlyph(const struct FontData *font, uint16_t codepoint,
   glyph = &unpacked_glyph;
 #endif
   const uint8_t *bits = font->bits + glyph->data_offset;
-  uint8_t page = 0;
+  uint8_t stripe = 0;
   uint8_t x = 0;
-  /* Emit empty bits for offset pages */
-  for (/**/; page < glyph->page_offset; ++page) {
-    start_stripe(page, glyph->width, userdata);
+  /* Emit empty bits for offset stripes */
+  for (/**/; stripe < glyph->stripe_offset; ++stripe) {
+    start_stripe(stripe, glyph->width, userdata);
     for (x = 0; x < glyph->width; ++x) emit(x, 0x00, userdata);
   }
 
-  /* Pages with data */
-  for (/**/; page < glyph->page_offset+glyph->pages; ++page) {
-    start_stripe(page, glyph->width, userdata);
+  /* Stripes with data */
+  for (/**/; stripe < glyph->stripe_offset+glyph->stripes; ++stripe) {
+    start_stripe(stripe, glyph->width, userdata);
     x = 0;
     /* Left margin */
     for (/**/; x < glyph->left_margin; ++x) emit(x, 0x00, userdata);
@@ -111,9 +111,9 @@ uint8_t EmitGlyph(const struct FontData *font, uint16_t codepoint,
     for (/**/; x < glyph->width; ++x) emit(x, 0x00, userdata);
   }
 
-  /* Remaining, empty pages */
-  for (/**/; page < font->pages; ++page) {
-    start_stripe(page, glyph->width, userdata);
+  /* Remaining, empty stripes */
+  for (/**/; stripe < font->stripes; ++stripe) {
+    start_stripe(stripe, glyph->width, userdata);
     for (x = 0; x < glyph->width; ++x) emit(x, 0x00, userdata);
   }
   return glyph->width;

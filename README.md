@@ -12,7 +12,7 @@ for embedded systems with little flash memory.
 ### Compaction
 
 The compaction techniques are a balance between space-savings and easy
-decoding in microcontrollers:
+decoding (computation and code-size) in microcontrollers:
 
   * Allow to only include the subset of characters you need.
   * No fixed array sizes per Glyph which allows variable length encoding.
@@ -25,7 +25,8 @@ decoding in microcontrollers:
        Larger fonts with longer repetitions of the same byte benefit from
        this encoding. `c0` is always non-zero; if `c1` is zero, `[b1]` is
        omitted.
-    2) One byte storing counts in two bits `[c3|c2|c1|c0] [b0] [b1] [b2] [b3]`.
+    2) One byte storing counts in two bits followed by the bytes to
+       be repeated: `[c3|c2|c1|c0] [b0] [b1] [b2] [b3]`.
        `c0` is always non-zero. The top counts can be zero; for each
        zero `cn`, the corresponding `[bn]` is omitted.
 
@@ -67,7 +68,7 @@ compile there. Write some adapting code to your screen using the provided
 function.
 
 The `font-support` provides the runtime way to access the generated font.
-Since the code-generation might evolve, font-support should be copied whenever
+Since the code-generation evolves, font-support should be copied whenever
 a font is generated to make sure it is compatible with that version.
 
 At this point, the generated code is pretty specific to represent fonts in
