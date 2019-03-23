@@ -67,6 +67,13 @@ bool Font::LoadFont(const char *path) {
                &dummy, &font_height_, &dummy, &base_line_) == 4) {
       base_line_ += font_height_;
     }
+    else if (strncmp(buffer, "FONT ", strlen("FONT ")) == 0) {
+      for (char *end = buffer + strlen(buffer) - 1;
+           end > buffer && isspace(*end); --end) {
+        *end = '\0';
+      }
+      font_name_ = buffer + strlen("FONT ");
+    }
     else if (sscanf(buffer, "ENCODING %ud", &codepoint) == 1) {
       // parsed.
     }

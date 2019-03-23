@@ -8,6 +8,7 @@
 #define BDF_FONT_H
 
 #include <map>
+#include <string>
 #include <stdint.h>
 #include "bitcanvas.h"
 
@@ -24,6 +25,9 @@ public:
 
   // Return baseline. Pixels from the topline to the baseline.
   int baseline() const { return base_line_; }
+
+  // Name of font if known from the BDF-file.
+  const std::string& fontname() const { return font_name_; }
 
   // Return width of given character, or -1 if font is not loaded or character
   // does not exist.
@@ -56,6 +60,7 @@ private:
 
   const Glyph *FindGlyph(uint32_t codepoint) const;
 
+  std::string font_name_;
   int font_height_;
   int base_line_;
   CodepointGlyphMap glyphs_;
