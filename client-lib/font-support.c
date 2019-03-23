@@ -83,8 +83,8 @@ uint8_t EmitGlyph(const struct FontData *font, uint16_t codepoint,
       }
     }
     else {
-      const uint8_t mask = (glyph->rle_type == 1) ? 0x03 : 0x0f;
-      const uint8_t shift = (glyph->rle_type == 1) ? 2 : 4;
+      const uint8_t mask = (glyph->rle_type == 1) ? 0x0f : 0x03;
+      const uint8_t shift = (glyph->rle_type == 1) ? 4 : 2;
       while (x < glyph->width - glyph->right_margin) {
 #ifdef __AVR__
         uint8_t runlengths = pgm_read_byte(bits++);

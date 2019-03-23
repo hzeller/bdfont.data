@@ -313,8 +313,8 @@ protected:
             }
         }
         else {
-            RLECompressor *c = (c2_bytes < c4_bytes) ? &c2 : &c4;
-            g_.rle_type = (c->sections() == 4) ? 1 : 2;
+            RLECompressor *c = (c4_bytes < c2_bytes) ? &c4 : &c2;
+            g_.rle_type = (c->sections() == 4) ? 2 : 1;
             for (int p = 0; p < g_.stripes; ++p) {
                 fprintf(out_, "  ");
                 for (x = g_.left_margin; x < g_.width - g_.right_margin; ++x) {

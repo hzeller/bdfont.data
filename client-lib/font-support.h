@@ -38,7 +38,7 @@ struct GlyphData {
   uint8_t stripe_offset: 4;  /* Empty Y-stripes skipped in data. */
   uint8_t stripes      : 4;  /* stripes of data filled with data. */
   uint16_t data_offset : 14; /* Pointer into bits array. */
-  uint8_t rle_type     : 2;  /* 0=none; 1=4x2-bit count; 2=2x4-bit count */
+  uint8_t rle_type     : 2;  /* 0: none; 1: 2x4-bit count; 2: 4x2-bit count */
 } __attribute__((packed));
 
 struct FontData {

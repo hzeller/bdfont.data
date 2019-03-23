@@ -17,9 +17,9 @@ decoding (computation and code-size) in microcontrollers:
   * Allow to only include the subset of characters you need.
   * No fixed array sizes per Glyph which allows variable length encoding.
   * Empty space around a character is not stored.
-  * Per-Glyph selection of optimal encoding between direct data byte storage
-    and two different run length encodings.
-  * Choice of two RLE encodings
+  * Automatic per-Glyph selection of best encoding from a choice of direct
+    data byte storage and two different run length encodings.
+  * Choice of two run length encodings
     1) One byte storing repetition-counts in nibbles, followed by
        the bytes that should be repeated `[c1|c0] [b0] [b1]`.
        Larger fonts with longer repetitions of the same byte benefit from
