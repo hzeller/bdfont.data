@@ -3,11 +3,33 @@ Putting BDF into the `.data` segment
 
 (Note, this a somewhat hacky tool I use for personal projects; provided AS-IS).
 
-Simple tool to generate bitmap-fonts stored in C-structs from BDF fonts to be
-used in C-Programs.
+Simple tool to generate bitmap-fonts stored in static data C-structs
+from BDF fonts.
 
 The focus is to generate a somewhat compact representation of fonts suited
 for embedded systems with little flash memory.
+
+### Compaction
+
+The compaction techniques are a balance between space-savings and easy
+decoding in microcontrollers:
+
+  * Allow to only include the subset of characters you need.
+  * No fixed array sizes per Glyph which allows variable length encoding.
+  * Empty space around a character is not stored.
+  * Per-Glyph selection of optimal encoding between direct data byte storage
+    and two different run length encodings.
+  * Choice of two RLE encodings
+    1) One byte storing repetition-counts in nibbles, followed by
+       the bytes that should be repeated `[c1|c0] [b0] [b1]`.
+       Larger fonts with longer repetitions of the same byte benefit from
+       this encoding. `c0` is always non-zero; if `c1` is zero, `[b1]` is
+       omitted.
+    2) One byte storing counts in two bits `[c3|c2|c1|c0] [b0] [b1] [b2] [b3]`.
+       `c0` is always non-zero. The top counts can be zero; for each
+       zero `cn`, the corresponding `[bn]` is omitted.
+
+### Unicode
 
 Fonts can have any Unicode characters from the Basic Multilingual Plane (the
 first 16 bit), so it is easy to include special characters such as μ or π.
@@ -16,13 +38,14 @@ to include into the compiled code to keep data compact. It is perfectly
 ok to have 'sparse' fonts that only contain the characters you need for
 your program strings.
 
+### Build and use
 ```bash
 make -C src
 # Invoking tool. Multiple instances of same character is only included once.
 src/generate-compiled-font path/to/font.bdf myfontname "01234567890μHelloWorld"
 ```
 
-Synopsis
+#### Invocation Synopsis
 ```
 usage: generate-compiled-font [options] <bdf-file> <fontname> <relevantchars>
 Options:
