@@ -31,12 +31,14 @@ extern "C" {
  * Only use the functions below to access the fonts.
  */
 struct GlyphData {
-  int16_t codepoint;        /* Unicode 16 code-point. */
-  uint8_t width;            /* Individual width of this one. */
-  uint8_t page_offset : 4;  /* Empty Y-pages skipped in data. */
-  uint8_t pages : 4;        /* pages of data filled with data. */
+  uint16_t codepoint;        /* Unicode 16 code-point. */
+  uint8_t width;             /* Individual width of this one. */
+  uint8_t left_margin  : 4;  /* Left empty space */
+  uint8_t right_margin : 4;  /* Right empty space */
+  uint8_t page_offset  : 4;  /* Empty Y-pages skipped in data. */
+  uint8_t pages        : 4;  /* pages of data filled with data. */
   uint16_t data_offset : 14; /* Pointer into bits array. */
-  uint8_t rle_type : 2;     /* 0=none; 1=4x2-bit count; 2=2x4-bit count */
+  uint8_t rle_type     : 2;  /* 0=none; 1=4x2-bit count; 2=2x4-bit count */
 } __attribute__((packed));
 
 struct FontData {

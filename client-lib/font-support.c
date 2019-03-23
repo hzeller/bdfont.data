@@ -41,6 +41,7 @@ static const struct GlyphData *find_glyph(const struct FontData *font,
 
 uint8_t EmitGlyph(const struct FontData *font, uint16_t codepoint,
                   StartStripe start_stripe, EmitFun emit, void *userdata) {
+  /* TODO: Look at assembly to make smaller */
 #ifdef __AVR__
   struct FontData unpacked_font;
   memcpy_P(&unpacked_font, font, sizeof(unpacked_font));
@@ -66,8 +67,13 @@ uint8_t EmitGlyph(const struct FontData *font, uint16_t codepoint,
   for (/**/; page < glyph->page_offset+glyph->pages; ++page) {
     start_stripe(page, glyph->width, userdata);
     x = 0;
+    /* Left margin */
+    for (/**/; x < glyph->left_margin; ++x) emit(x, 0x00, userdata);
+
+    /* Meat of the data */
     if (glyph->rle_type == 0) {
-      for (x = 0; x < glyph->width; ++x) {
+      uint8_t data_w = glyph->width - glyph->left_margin - glyph->right_margin;
+      for (/**/; x < data_w; ++x) {
 #ifdef __AVR__
         uint8_t data_byte = pgm_read_byte(bits++);
 #else
@@ -79,7 +85,7 @@ uint8_t EmitGlyph(const struct FontData *font, uint16_t codepoint,
     else {
       const uint8_t mask = (glyph->rle_type == 1) ? 0x03 : 0x0f;
       const uint8_t shift = (glyph->rle_type == 1) ? 2 : 4;
-      while (x < glyph->width) {
+      while (x < glyph->width - glyph->right_margin) {
 #ifdef __AVR__
         uint8_t runlengths = pgm_read_byte(bits++);
 #else
@@ -100,6 +106,9 @@ uint8_t EmitGlyph(const struct FontData *font, uint16_t codepoint,
         }
       }
     }
+
+    /* Right margin. */
+    for (/**/; x < glyph->width; ++x) emit(x, 0x00, userdata);
   }
 
   /* Remaining, empty pages */
