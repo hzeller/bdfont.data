@@ -206,10 +206,10 @@ public:
                 fprintf(out_, "  {.codepoint = 0x%04x, ",
                         g.codepoint);
             }
-            fprintf(out_, " .width=%2d, "
+            fprintf(out_, ".width=%2d, "
                     ".page_offset=%d, .pages=%d, "
                     ".left_margin=%d, .right_margin=%d, "
-                    ".rle_type = %d, .data_offset = %4d},\n",
+                    ".rle_type=%d, .data_offset=%4d},\n",
                     g.width,
                     g.page_offset, g.pages, g.left_margin, g.right_margin,
                     g.rle_type, g.data_offset);
