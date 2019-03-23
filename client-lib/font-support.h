@@ -41,6 +41,7 @@ struct GlyphData {
 
 struct FontData {
   uint16_t available_glyphs; /* Number of glyphs in this font. */
+  uint8_t baseline;          /* Position of baseline from rendering top */
   uint8_t pages;             /* max height in 'pages', 8 bit stripes */
   const uint8_t *bits;
   const struct GlyphData *glyphs;

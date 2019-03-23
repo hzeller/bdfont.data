@@ -22,6 +22,22 @@ make -C src
 src/generate-compiled-font path/to/font.bdf myfontname "01234567890μHelloWorld"
 ```
 
+Synopsis
+```
+usage: generate-compiled-font [options] <bdf-file> <fontname> <relevantchars>
+Options:
+  -b <baseline> : Choose fixed baseline. This allows choice of pixel-exact vertical
+                  alignment at compile-time vs. need for shifting at runtime.
+
+General parameters:
+ <bdf-file>     : Path to the input BDF font file
+ <fontname>     : The generated font is named like this
+ <relevantchars>: A UTF8 string with all the characters that should be included in the font
+
+ouputs font-$(fontname).h font-$(fontname).c
+containting relevant characters
+```
+
 This generates the files `font-myfontname.{h,c}`. Copy this together with
 the runtime-support `client-lib/font-support.{h,c}` into your project and
 compile there. Write some adapting code to your screen using the provided

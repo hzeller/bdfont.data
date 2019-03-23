@@ -1,5 +1,6 @@
 
 #include <assert.h>
+#include <getopt.h>
 #include <libgen.h>
 #include <stdint.h>
 #include <string.h>
@@ -42,7 +43,18 @@ static constexpr char kCodeHeader[] =
 )";
 
 static int usage(const char *prog) {
-    fprintf(stderr, "usage: %s <bdf-file> <fontname> <relevantchars>\n", prog);
+    fprintf(stderr, "usage: %s [options] "
+            "<bdf-file> <fontname> <relevantchars>\n", prog);
+    fprintf(stderr, "Options:\n"
+            "  -b <baseline> : Choose fixed baseline. This allows "
+            "choice of pixel-exact vertical\n"
+            "                  alignment at compile-time vs. need for "
+            "shifting at runtime.\n\n");
+    fprintf(stderr, "General parameters:\n"
+            " <bdf-file>     : Path to the input BDF font file\n"
+            " <fontname>     : The generated font is named like this\n"
+            " <relevantchars>: A UTF8 string with all the characters that "
+            "should be included in the font\n\n");
     fprintf(stderr, "ouputs font-$(fontname).h font-$(fontname).c\n"
             "containting relevant characters\n");
     return 1;
@@ -50,20 +62,28 @@ static int usage(const char *prog) {
 
 class CollectFontMeta : public BitCanvas {
 public:
+    CollectFontMeta(bool fixed_baseline, int chosen_min)
+        : fixed_baseline_(fixed_baseline),
+          min_height_(fixed_baseline ? chosen_min : 1000) {
+    }
+
     void SetPixel(int x, int y, bool) {
-        if (x >= width_) width_ = x+1;
         if (y >= max_height_) max_height_ = y;
-        if (y < min_height_) min_height_ = y;
-        //printf("(%d,%d) h=%d\n", x, y, max_height_ - min_height_);
+        if (fixed_baseline_) {
+            baseline_satisfied_ &= (y >= min_height_);
+        } else if (y < min_height_) {
+            min_height_ = y;
+        }
     }
     void NextChar() { count_++; }
 
-    //int width() const { return width_; }
     int pages() const { return (max_height_ - min_height_ +8)/8; }
     int offset_y() const { return min_height_; }
+    bool baseline_satisfied() const { return baseline_satisfied_; }
 
 private:
-    int width_ = -1;
+    const bool fixed_baseline_;
+    bool baseline_satisfied_ = true;
     int min_height_ = 1000;
     int max_height_ = -1;
     int count_ = 0;
@@ -298,11 +318,25 @@ private:
 };
 
 int main(int argc, char *argv[]) {
-    if (argc <= 3) return usage(argv[0]);
+    int chosen_baseline = -1;
 
-    const char *const bdf_font = argv[1];
-    const char *const fontname = argv[2];
-    const char *const utf8_text = argv[3];
+    int opt;
+    while ((opt = getopt(argc, argv, "b:")) != -1) {
+        switch (opt) {
+        case 'b':
+            chosen_baseline = atoi(optarg);
+            break;
+        default:
+            return usage(argv[0]);
+        }
+    }
+
+    if (argc - optind != 3)
+        return usage(argv[0]);
+
+    const char *const bdf_font = argv[optind];
+    const char *const fontname = argv[optind+1];
+    const char *const utf8_text = argv[optind+2];
 
     Font font;
     if (!font.LoadFont(bdf_font)) {
@@ -327,10 +361,17 @@ int main(int argc, char *argv[]) {
     }
 
     // Get some metadata.
-    CollectFontMeta meta_collector;
+    CollectFontMeta meta_collector(chosen_baseline > -1,
+                                   font.baseline() - chosen_baseline);
     for (auto c : relevant_chars) {
         font.DrawGlyph(&meta_collector, 0, font.baseline(), false, c);
         meta_collector.NextChar();
+    }
+
+    if (!meta_collector.baseline_satisfied()) {
+        fprintf(stderr, "Could not satisfy requested baseline %d: "
+                "characters would be truncated at the top!\n", chosen_baseline);
+        return usage(argv[0]);
     }
 
     const char *const font_file_basename = basename(strdup(bdf_font));
@@ -361,10 +402,12 @@ int main(int argc, char *argv[]) {
     // final font.
     fprintf(code_file, "const struct FontData PROGMEM font_%s = {\n"
             "  .available_glyphs = %d,\n"
+            "  .baseline = %d,\n"
             "  .pages = %d,\n"
             "  .bits = _font_data,\n"
             "  .glyphs = _font_glyphs\n};\n",
             fontname, (int)relevant_chars.size(),
+            font.baseline() - meta_collector.offset_y(),
             meta_collector.pages());
     fclose(code_file);
 }
