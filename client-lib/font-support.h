@@ -35,8 +35,8 @@ struct GlyphData {
   uint8_t width;             /* Individual width of this one. */
   uint8_t left_margin  : 4;  /* Left empty space */
   uint8_t right_margin : 4;  /* Right empty space */
-  uint8_t stripe_offset: 4;  /* Empty Y-stripes skipped in data. */
-  uint8_t stripes      : 4;  /* stripes of data filled with data. */
+  uint8_t stripe_begin : 4;  /* Empty Y-stripes skipped in data. */
+  uint8_t stripe_end   : 4;  /* end filled stripes */
   uint16_t data_offset : 14; /* Pointer into bits array. */
   uint8_t rle_type     : 2;  /* 0: none; 1: 2x4-bit count; 2: 4x2-bit count */
 } __attribute__((packed));

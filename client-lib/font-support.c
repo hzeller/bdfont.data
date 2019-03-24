@@ -58,13 +58,13 @@ uint8_t EmitGlyph(const struct FontData *font, uint16_t codepoint,
   uint8_t stripe = 0;
   uint8_t x = 0;
   /* Emit empty bits for offset stripes */
-  for (/**/; stripe < glyph->stripe_offset; ++stripe) {
+  for (/**/; stripe < glyph->stripe_begin; ++stripe) {
     start_stripe(stripe, glyph->width, userdata);
     for (x = 0; x < glyph->width; ++x) emit(x, 0x00, userdata);
   }
 
   /* Stripes with data */
-  for (/**/; stripe < glyph->stripe_offset+glyph->stripes; ++stripe) {
+  for (/**/; stripe < glyph->stripe_end; ++stripe) {
     start_stripe(stripe, glyph->width, userdata);
     x = 0;
     /* Left margin */

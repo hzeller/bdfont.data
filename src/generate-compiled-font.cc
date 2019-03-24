@@ -224,11 +224,11 @@ public:
                         g.codepoint);
             }
             fprintf(out_, ".width=%2d, "
-                    ".stripe_offset=%d, .stripes=%d, "
+                    ".stripe_begin=%d, .stripe_end=%d, "
                     ".left_margin=%d, .right_margin=%d, "
                     ".rle_type=%d, .data_offset=%4d},\n",
                     g.width,
-                    g.stripe_offset, g.stripes, g.left_margin, g.right_margin,
+                    g.stripe_begin, g.stripe_end, g.left_margin, g.right_margin,
                     g.rle_type, g.data_offset);
         }
 
@@ -243,8 +243,8 @@ protected:
         assert(y >= 0);  // Otherwise the offset has been calculated wrong
         int stripe = y / 8;
         int bit = y % 8;
-        if (stripe < g_.stripe_offset)
-            g_.stripe_offset = stripe;
+        if (stripe < g_.stripe_begin)
+            g_.stripe_begin = stripe;
         if (stripe >= last_stripe_) last_stripe_ = stripe+1;
         if (x < min_x_) min_x_ = x;
         if (x > max_x_) max_x_ = x;
@@ -261,25 +261,25 @@ protected:
         g_.codepoint = codepoint;
         g_.data_offset = emitted_bytes_;
         if (last_stripe_ > 0) {
-            g_.stripes = last_stripe_ - g_.stripe_offset;
+          g_.stripe_end = last_stripe_;
         }
-        if (g_.stripes > 0) {
-            g_.left_margin = (min_x_ <= 0xf) ? min_x_ : 0xf;
-            int right_margin = g_.width - max_x_ - 1;
-            g_.right_margin = (right_margin <= 0xf) ? right_margin : 0xf;
+        if (g_.stripe_end > 0) {
+          g_.left_margin = (min_x_ <= 0xf) ? min_x_ : 0xf;
+          int right_margin = g_.width - max_x_ - 1;
+          g_.right_margin = (right_margin <= 0xf) ? right_margin : 0xf;
         }
 
         RLECompressor c2(2);
         RLECompressor c4(4);
 
         // First, let's test if RLE will bring us anything, and which is better
-        const int baseline_bytes = g_.stripes*g_.width;
+        const int baseline_bytes = (g_.stripe_end - g_.stripe_begin)*g_.width;
         int c2_bytes = 0;
         int c4_bytes = 0;
         int x;
-        for (int p = 0; p < g_.stripes; ++p) {
+        for (int p = g_.stripe_begin; p < g_.stripe_end; ++p) {
             for (x = g_.left_margin; x < g_.width-g_.right_margin; ++x) {
-                uint8_t b = data_[(p+g_.stripe_offset) * kMaxFontWidth + x];
+                uint8_t b = data_[p * kMaxFontWidth + x];
                 c2.AddByte(NULL, b);
                 c4.AddByte(NULL, b);
             }
@@ -302,11 +302,10 @@ protected:
 
         if (!should_use_compression) {
             g_.rle_type = 0;
-            for (int p = 0; p < g_.stripes; ++p) {
+            for (int p = g_.stripe_begin; p < g_.stripe_end; ++p) {
                 fprintf(out_, "  ");
                 for (x = g_.left_margin; x < g_.width - g_.right_margin; ++x) {
-                    fprintf(out_, "0x%02x,", data_[(p+g_.stripe_offset)
-                                                   * kMaxFontWidth + x]);
+                    fprintf(out_, "0x%02x,", data_[p * kMaxFontWidth + x]);
                     emitted_bytes_++;
                 }
                 fprintf(out_, "\n");
@@ -315,11 +314,10 @@ protected:
         else {
             RLECompressor *c = (c4_bytes < c2_bytes) ? &c4 : &c2;
             g_.rle_type = (c->sections() == 4) ? 2 : 1;
-            for (int p = 0; p < g_.stripes; ++p) {
+            for (int p = g_.stripe_begin; p < g_.stripe_end; ++p) {
                 fprintf(out_, "  ");
                 for (x = g_.left_margin; x < g_.width - g_.right_margin; ++x) {
-                    c->AddByte(out_, data_[(p+g_.stripe_offset)
-                                           * kMaxFontWidth + x]);
+                    c->AddByte(out_, data_[p * kMaxFontWidth + x]);
                 }
                 emitted_bytes_ += c->FinishLine(out_);
                 fprintf(out_, "\n");
@@ -332,8 +330,8 @@ private:
     void Reset(int width) {
         bzero(data_, kMaxFontWidth * stripes_);
         g_.width = width;
-        g_.stripe_offset = stripes_ - 1;
-        g_.stripes = 0;
+        g_.stripe_begin = stripes_ - 1;
+        g_.stripe_end = 0;
         g_.left_margin = g_.right_margin = 0;
         last_stripe_ = -1;
         min_x_ = width;
