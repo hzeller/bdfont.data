@@ -289,15 +289,23 @@ protected:
 
         const bool should_use_compression
             = std::min(c2_bytes, c4_bytes) < baseline_bytes;
+        // Only if 4-section compressor is better, use that; otherwise nibble
+        // decompression is easier to do in head when reading data.
+        RLECompressor *const best_compress = (c4_bytes < c2_bytes) ? &c4 : &c2;
+
         if (g_.codepoint < 0x80) {
             fprintf(out_, "\n  /* codepoint '%s%c' %s */\n",
                     g_.codepoint == '\'' ? "\\" : "",
                     g_.codepoint,
-                    should_use_compression ? "RLE" : "plain bytes");
+                    should_use_compression
+                    ? (best_compress->sections() == 4 ? "RLE/4" : "RLE/nibble")
+                    : "plain bytes");
         } else {
             fprintf(out_, "\n  /* codepoint U+%04x %s */\n",
                     g_.codepoint,
-                    should_use_compression ? "RLE" : "plain bytes");
+                    should_use_compression
+                    ? (best_compress->sections() == 4 ? "RLE/4" : "RLE/nibble")
+                    : "plain bytes");
         }
 
         if (!should_use_compression) {
@@ -312,14 +320,13 @@ protected:
             }
         }
         else {
-            RLECompressor *c = (c4_bytes < c2_bytes) ? &c4 : &c2;
-            g_.rle_type = (c->sections() == 4) ? 2 : 1;
+            g_.rle_type = (best_compress->sections() == 4) ? 2 : 1;
             for (int p = g_.stripe_begin; p < g_.stripe_end; ++p) {
                 fprintf(out_, "  ");
                 for (x = g_.left_margin; x < g_.width - g_.right_margin; ++x) {
-                    c->AddByte(out_, data_[p * kMaxFontWidth + x]);
+                    best_compress->AddByte(out_, data_[p * kMaxFontWidth + x]);
                 }
-                emitted_bytes_ += c->FinishLine(out_);
+                emitted_bytes_ += best_compress->FinishLine(out_);
                 fprintf(out_, "\n");
             }
         }
