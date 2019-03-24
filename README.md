@@ -43,12 +43,12 @@ your program strings.
 ```bash
 make -C src
 # Invoking tool. Multiple instances of same character is only included once.
-src/generate-compiled-font path/to/font.bdf myfontname "01234567890μHelloWorld"
+src/bdfont-data-gen path/to/font.bdf myfontname "01234567890μHelloWorld"
 ```
 
 #### Invocation Synopsis
 ```
-usage: generate-compiled-font [options] <bdf-file> <fontname> <relevantchars>
+usage: bdfont-data-gen [options] <bdf-file> <fontname> <relevantchars>
 Options:
   -b <baseline> : Choose fixed baseline. This allows choice of pixel-exact vertical
                   alignment at compile-time vs. need for shifting at runtime.
