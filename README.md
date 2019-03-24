@@ -3,8 +3,8 @@ Putting BDF into the `.data` segment
 
 (Note, this a somewhat hacky tool I use for personal projects; provided AS-IS).
 
-Simple tool to generate bitmap-fonts stored in static data C-structs
-from BDF fonts.
+Simple tool to generate bitmap-fonts to be compiled into static data C-structs
+from BDF fonts, including support functions to access them.
 
 The focus is to generate a somewhat compact representation of fonts suited
 for embedded systems with little flash memory.
@@ -46,30 +46,34 @@ make -C src
 src/bdfont-data-gen path/to/font.bdf myfontname "01234567890μHelloWorld"
 ```
 
+Optionally install with
+```
+sudo make -C src install
+```
+
 #### Invocation Synopsis
 ```
-usage: bdfont-data-gen [options] <bdf-file> <fontname> <relevantchars>
+usage: bdfont-data-gen [options] [-- <bdf-file> <fontname> <relevantchars>]
 Options:
+  -d <directory>: Output files to given directory instead of ./
   -b <baseline> : Choose fixed baseline. This allows choice of pixel-exact vertical
                   alignment at compile-time vs. need for shifting at runtime.
+  -s            : Create font-support.{h,c} files.
 
-General parameters:
- <bdf-file>     : Path to the input BDF font file
- <fontname>     : The generated font is named like this
- <relevantchars>: A UTF8 string with all the characters that should be included in the font
-
-ouputs font-$(fontname).h font-$(fontname).c
-containting relevant characters
+To generate font-code, three parameters are required:
+ <bdf-file>     : Path to the input BDF font file.
+ <fontname>     : The generated font is named like this.
+ <relevantchars>: A UTF8 string with all the characters that should be included in the font.
+This outputs font-$(fontname).h font-$(fontname).c
 ```
 
-This generates the files `font-myfontname.{h,c}`. Copy this together with
-the runtime-support `client-lib/font-support.{h,c}` into your project and
-compile there. Write some adapting code to your screen using the provided
-function.
+Invocation with `<bdf-file> <fontname> <relevantchars>` generates the files
+`font-myfontname.{h,c}` into the directory chosen with `-d`.
 
-The `font-support` provides the runtime way to access the generated font.
-Since the code-generation evolves, font-support should be copied whenever
-a font is generated to make sure it is compatible with that version.
+You also need the files `font-supprt.{h,c}` in the target project, which
+provides run-time support to access the font. You can emit these with
+the `-s` option. Make sure to re-create these files whenever the version
+of `bdfont-data-gen` changes, to be compatible with the generated files.
 
 At this point, the generated code is pretty specific to represent fonts in
 'stripes', needed for SSD1306 type of displays: Each byte represents a vertical
@@ -77,9 +81,10 @@ set of 8 pixels which is a single pixel wide in X-direction. Thus it is pretty
 easy to scroll text in X-direction; in y-direction only in
 multiples of 8 unless bit-shifting is applied.
 Fonts might need multiple of these stripes.
+Future versions of `bdfont-data-gen` might also create horizontal bitmaps.
 
 The runtime-support currently is a pretty simple function `EmitGlyph()` that
-expects callbacks that it calls with the bitmap data:
+expects callbacks that it calls with the bitmap data; see `font-support.h`
 
 ```c
 /* Emit the bytes for a glyph with the given basic plane unicode "codepoint"

@@ -1,3 +1,4 @@
 *~
 *.o
-generate-compiled-font
+bdfont-data-gen
+font-support-str.inc

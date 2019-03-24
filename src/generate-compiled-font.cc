@@ -31,6 +31,8 @@
 #include "font-support.h"
 #include "utf8-internal.h"
 
+#include "font-support-str.inc"  // Verbatim font-support.{h,cc}
+
 // params: 4x fontname
 static constexpr char kHeaderTemplate[] =
   R"(/* -*- mode: c; c-basic-offset: 2; indent-tabs-mode: nil; -*-
@@ -65,20 +67,22 @@ static constexpr char kCodeHeader[] =
 )";
 
 static int usage(const char *prog) {
-  fprintf(stderr, "usage: %s [options] -- "
-          "<bdf-file> <fontname> <relevantchars>\n", prog);
+  fprintf(stderr, "usage: %s [options] [-- "
+          "<bdf-file> <fontname> <relevantchars>]\n", prog);
   fprintf(stderr, "Options:\n"
+          "  -d <directory>: Output files to given directory instead of ./\n"
           "  -b <baseline> : Choose fixed baseline. This allows "
           "choice of pixel-exact vertical\n"
           "                  alignment at compile-time vs. need for "
-          "shifting at runtime.\n\n");
-  fprintf(stderr, "General parameters:\n"
-          " <bdf-file>     : Path to the input BDF font file\n"
-          " <fontname>     : The generated font is named like this\n"
+          "shifting at runtime.\n"
+          "  -s            : Create font-support.{h,c} files.\n"
+          "\n");
+  fprintf(stderr, "To generate font-code, three parameters are required:\n"
+          " <bdf-file>     : Path to the input BDF font file.\n"
+          " <fontname>     : The generated font is named like this.\n"
           " <relevantchars>: A UTF8 string with all the characters that "
-          "should be included in the font\n\n");
-  fprintf(stderr, "ouputs font-$(fontname).h font-$(fontname).c\n"
-          "containting relevant characters\n");
+          "should be included in the font.\n");
+  fprintf(stderr, "This outputs font-$(fontname).h font-$(fontname).c\n");
   return 1;
 }
 
@@ -357,31 +361,14 @@ private:
   std::vector<GlyphData> glyphs_;
 };
 
-int main(int argc, char *argv[]) {
-  int chosen_baseline = -1;
-
-  int opt;
-  while ((opt = getopt(argc, argv, "b:")) != -1) {
-    switch (opt) {
-    case 'b':
-      chosen_baseline = atoi(optarg);
-      break;
-    default:
-      return usage(argv[0]);
-    }
-  }
-
-  if (argc - optind != 3)
-    return usage(argv[0]);
-
-  const char *const bdf_font = argv[optind];
-  const char *const fontname = argv[optind+1];
-  const char *const utf8_text = argv[optind+2];
-
+static bool GenerateFontFile(const char *bdf_font, const char *fontname,
+                             const char *utf8_text,
+                             int chosen_baseline,
+                             const std::string& directory) {
   Font font;
   if (!font.LoadFont(bdf_font)) {
     fprintf(stderr, "Couldn't load font %s\n", bdf_font);
-    return usage(argv[0]);
+    return false;
   }
 
   std::set<uint16_t> relevant_chars;
@@ -397,7 +384,7 @@ int main(int argc, char *argv[]) {
 
   if (relevant_chars.empty()) {
     fprintf(stderr, "relevant chars is empty?. Not creating output\n");
-    return usage(argv[0]);
+    return false;
   }
 
   // Get some metadata.
@@ -411,28 +398,36 @@ int main(int argc, char *argv[]) {
   if (!meta_collector.baseline_satisfied()) {
     fprintf(stderr, "Could not satisfy requested baseline %d: "
             "characters would be truncated at the top!\n", chosen_baseline);
-    return usage(argv[0]);
+    return false;
   }
 
   const char *const font_file_basename = basename(strdup(bdf_font));
 
   // Generate header.
-  std::string header_filename = std::string("font-") + fontname + ".h";
-  FILE *header = fopen(header_filename.c_str(), "w");
-  fprintf(header, kHeaderTemplate, font_file_basename,
+  std::string header_filename = directory + "/font-" + fontname + ".h";
+  FILE *header_file = fopen(header_filename.c_str(), "w");
+  if (header_file == nullptr) {
+    perror(header_filename.c_str());
+    return false;
+  }
+  fprintf(header_file, kHeaderTemplate, font_file_basename,
           font.fontname().c_str(),
           font.height(), font.baseline() - meta_collector.offset_y(),
           utf8_text,
           fontname, fontname,
           (int)relevant_chars.size(),
           fontname, fontname);
-  fclose(header);
+  fclose(header_file);
 
   // Generate code.
 
   // Glyphs and glyph data
-  std::string code_filename = std::string("font-") + fontname + ".c";
+  std::string code_filename = directory + "/font-" + fontname + ".c";
   FILE *code_file = fopen(code_filename.c_str(), "w");
+  if (code_file == nullptr) {
+    perror(code_filename.c_str());
+    return false;
+  }
   fprintf(code_file, kCodeHeader, font_file_basename,
           font.fontname().c_str(),
           font.height(), font.baseline() - meta_collector.offset_y(),
@@ -458,4 +453,75 @@ int main(int argc, char *argv[]) {
           font.baseline() - meta_collector.offset_y(),
           meta_collector.stripes());
   fclose(code_file);
+
+  return true;
+}
+
+static bool WriteFile(const std::string& directory, const char *name,
+                      const char *str) {
+  std::string code_filename = directory + "/" + name;
+  FILE *code_file = fopen(code_filename.c_str(), "w");
+  if (code_file == nullptr) {
+    perror(code_filename.c_str());
+    return false;
+  }
+  fwrite(str, 1, strlen(str), code_file);
+  fclose(code_file);
+  return true;
+}
+
+static bool GenerateSupportFiles(const std::string& dir) {
+  if (!WriteFile(dir, "font-support.h", font_support_h))
+    return false;
+  if (!WriteFile(dir, "font-support.c", font_support_c))
+    return false;
+  return true;
+}
+
+int main(int argc, char *argv[]) {
+  int chosen_baseline = -1;
+  std::string directory = ".";
+  bool create_support_files = false;
+
+  int opt;
+  while ((opt = getopt(argc, argv, "b:d:s")) != -1) {
+    switch (opt) {
+    case 'b':
+      chosen_baseline = atoi(optarg);
+      break;
+    case 'd':
+      directory = optarg;
+      break;
+    case 's':
+      create_support_files = true;
+      break;
+    default:
+      return usage(argv[0]);
+    }
+  }
+
+  int any_operation = 0;
+  if (create_support_files) {
+    ++any_operation;
+    if (!GenerateSupportFiles(directory)) return 1;
+  }
+  if (argc - optind > 0) {
+    ++any_operation;
+    if (argc - optind != 3) {
+      fprintf(stderr, "Not enough parameters to create font-files\n");
+      return usage(argv[0]);
+    }
+    if (!GenerateFontFile(argv[optind], argv[optind+1], argv[optind+2],
+                          chosen_baseline, directory)) {
+      return 1;
+    }
+  }
+
+  if (!any_operation) {
+    fprintf(stderr, "No operation selected. \n"
+            " * Use -s to generate support files\n"
+            " * Supply font-parameters to create compilable font files\n");
+    return usage(argv[0]);
+  }
+  return 0;
 }
