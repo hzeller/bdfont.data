@@ -55,66 +55,52 @@ uint8_t EmitGlyph(const struct FontData *font, uint16_t codepoint,
   glyph = &unpacked_glyph;
 #endif
   const uint8_t *bits = font->bits + glyph->data_offset;
-  uint8_t stripe = 0;
-  uint8_t x = 0;
-  /* Emit empty bits for offset stripes */
-  for (/**/; stripe < glyph->stripe_begin; ++stripe) {
-    start_stripe(stripe, glyph->width, userdata);
-    for (x = 0; x < glyph->width; ++x) emit(x, 0x00, userdata);
-  }
+  const uint8_t rle_mask = (glyph->rle_type == 1) ? 0x0f : 0x03;
+  const uint8_t rle_shift = (glyph->rle_type == 1) ? 4 : 2;
 
-  /* Stripes with data */
-  for (/**/; stripe < glyph->stripe_end; ++stripe) {
+  uint8_t stripe;
+  uint8_t x;
+  for (stripe = 0; stripe < font->stripes; ++stripe) {
     start_stripe(stripe, glyph->width, userdata);
-    x = 0;
-    /* Left margin */
-    for (/**/; x < glyph->left_margin; ++x) emit(x, 0x00, userdata);
 
-    /* Meat of the data */
-    const uint8_t end_data_width = glyph->width - glyph->right_margin;
-    if (glyph->rle_type == 0) {
-      for (/**/; x < end_data_width; ++x) {
-#ifdef __AVR__
-        const uint8_t data_byte = pgm_read_byte(bits++);
-#else
-        const uint8_t data_byte = *bits++;
-#endif
-        emit(x, data_byte, userdata);
-      }
+    /* Empty data for empty stripes */
+    if (stripe < glyph->stripe_begin || stripe >= glyph->stripe_end) {
+      for (x = 0; x < glyph->width; ++x) emit(x, 0x00, userdata);
+      continue;
     }
-    else {
-      const uint8_t mask = (glyph->rle_type == 1) ? 0x0f : 0x03;
-      const uint8_t shift = (glyph->rle_type == 1) ? 4 : 2;
-      while (x < end_data_width) {
+
+    /* Stripes with data */
+    x = 0;
+    while (x < glyph->width) {
+      /* left and right margin are empty */
+      if (x < glyph->left_margin || x >= glyph->width - glyph->right_margin) {
+        emit(x++, 0x00, userdata);
+        continue;
+      }
+
 #ifdef __AVR__
-        uint8_t runlengths = pgm_read_byte(bits++);
+      uint8_t data_byte = pgm_read_byte(bits++);
 #else
-        uint8_t runlengths = *bits++;
+      uint8_t data_byte = *bits++;
 #endif
-        while (runlengths) {
-          const uint8_t byte_count = runlengths & mask;
+
+      if (glyph->rle_type == 0) {
+        emit(x++, data_byte, userdata);
+      } else {
+        uint8_t runlengths;
+        for (runlengths = data_byte; runlengths; runlengths >>= rle_shift) {
+          uint8_t repetition_count = runlengths & rle_mask;
 #ifdef __AVR__
           const uint8_t data_byte = pgm_read_byte(bits++);
 #else
           const uint8_t data_byte = *bits++;
 #endif
-          uint8_t i;
-          for (i = 0; i < byte_count; ++i, ++x) {
-            emit(x, data_byte, userdata);
+          while (repetition_count--) {
+            emit(x++, data_byte, userdata);
           }
-          runlengths >>= shift;
         }
       }
     }
-
-    /* Right margin. */
-    for (/**/; x < glyph->width; ++x) emit(x, 0x00, userdata);
-  }
-
-  /* Remaining, empty stripes */
-  for (/**/; stripe < font->stripes; ++stripe) {
-    start_stripe(stripe, glyph->width, userdata);
-    for (x = 0; x < glyph->width; ++x) emit(x, 0x00, userdata);
   }
   return glyph->width;
 }
