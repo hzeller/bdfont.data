@@ -63,6 +63,8 @@ struct FontData {
  * information about which stripe and the expected width. Then an EmitFun() call
  * that emits a single byte at given x-position representing 8 vertical pixels.
  * Both functions get passed in some void pointer with user-data.
+ * TODO: function callbacks might not be the most code-space efficient on AVR,
+ *       find some readable alternative.
  */
 typedef void (*StartStripe)(uint8_t stripe, uint8_t width, void *userdata);
 typedef void (*EmitFun)(uint8_t x, uint8_t bits, void *userdata);
