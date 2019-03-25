@@ -33,6 +33,10 @@ public:
   // does not exist.
   int CharacterWidth(uint32_t unicode_codepoint) const;
 
+  template <typename Container> void GetCodepoints(Container *c) {
+    for (const auto &g : glyphs_) c->insert(g.first);
+  }
+
   // Draws the unicode character at position "x","y"
   // with "color" on "background_color" (background_color can be NULL for
   // transparency.

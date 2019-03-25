@@ -53,8 +53,10 @@ sudo make -C src install
 
 #### Invocation Synopsis
 ```
-usage: bdfont-data-gen [options] [-- <bdf-file> <fontname> <relevantchars>]
+usage: ./bdfont-data-gen [options] [<bdf-file> <fontname>]
 Options:
+  -c <inc-chars>: Characters to include in font. UTF8-string.
+  -C <char-file>: Read characters to include from file
   -d <directory>: Output files to given directory instead of ./
   -b <baseline> : Choose fixed baseline. This allows choice of pixel-exact vertical
                   alignment at compile-time vs. need for shifting at runtime.
@@ -63,7 +65,7 @@ Options:
 To generate font-code, three parameters are required:
  <bdf-file>     : Path to the input BDF font file.
  <fontname>     : The generated font is named like this.
- <relevantchars>: A UTF8 string with all the characters that should be included in the font.
+ With -c or -C, you can specify which characters are included.
 This outputs font-$(fontname).h font-$(fontname).c
 ```
 

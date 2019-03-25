@@ -17,11 +17,15 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 #include <assert.h>
+#include <fcntl.h>
 #include <getopt.h>
 #include <libgen.h>
 #include <stdint.h>
 #include <string.h>
 #include <strings.h>
+#include <sys/stat.h>
+#include <sys/types.h>
+#include <unistd.h>
 
 #include <set>
 #include <string>
@@ -67,9 +71,10 @@ static constexpr char kCodeHeader[] =
 )";
 
 static int usage(const char *prog) {
-  fprintf(stderr, "usage: %s [options] [-- "
-          "<bdf-file> <fontname> <relevantchars>]\n", prog);
+  fprintf(stderr, "usage: %s [options] [<bdf-file> <fontname>]\n", prog);
   fprintf(stderr, "Options:\n"
+          "  -c <inc-chars>: Characters to include in font. UTF8-string.\n"
+          "  -C <char-file>: Read characters to include from file\n"
           "  -d <directory>: Output files to given directory instead of ./\n"
           "  -b <baseline> : Choose fixed baseline. This allows "
           "choice of pixel-exact vertical\n"
@@ -80,8 +85,8 @@ static int usage(const char *prog) {
   fprintf(stderr, "To generate font-code, three parameters are required:\n"
           " <bdf-file>     : Path to the input BDF font file.\n"
           " <fontname>     : The generated font is named like this.\n"
-          " <relevantchars>: A UTF8 string with all the characters that "
-          "should be included in the font.\n");
+          " With -c or -C, you can specify which characters are included.\n"
+          "(Otherwise all in font are included which likely not fits.)");
   fprintf(stderr, "This outputs font-$(fontname).h font-$(fontname).c\n");
   return 1;
 }
@@ -208,10 +213,10 @@ public:
     fprintf(out_, "static const uint8_t PROGMEM _font_data[] = {");
   }
 
-  void Emit(const Font& font, uint32_t codepoint) {
+  bool Emit(const Font& font, uint32_t codepoint) {
     Reset(font.CharacterWidth(codepoint));
     font.DrawGlyph(this, 0, font.baseline(), false, codepoint);
-    FinishChar(codepoint);
+    return FinishChar(codepoint);
   }
 
   void EmitChars() {
@@ -261,7 +266,17 @@ protected:
   // how many times the second byte is repeated. The lower nibble shows how
   // many times the third byte is repeated. If the lower nibble is 0, then
   // the third byte is skipped.
-  void FinishChar(uint16_t codepoint) {
+  bool FinishChar(uint16_t codepoint) {
+    // Since this is meant for embedded devices, we have limited the
+    // size of the variable holding the offsets (font-support.h). Make
+    // sure we don't go over this (which can be if -c or -C are omitted).
+    constexpr int kMaxFontOffsetCapacityBits = 14;
+    if (emitted_bytes_ > (2 << kMaxFontOffsetCapacityBits)) {
+      fprintf(stderr, "Reached capacity: GlyphData::font_offset uses more "
+              "than %d bits\n", kMaxFontOffsetCapacityBits);
+      fprintf(stderr, "Please limit characters to include with -c or -C\n");
+      return false;
+    }
     g_.codepoint = codepoint;
     g_.data_offset = emitted_bytes_;
     if (last_stripe_ > 0) {
@@ -334,6 +349,7 @@ protected:
       }
     }
     glyphs_.push_back(g_);
+    return true;
   }
 
 private:
@@ -362,7 +378,7 @@ private:
 };
 
 static bool GenerateFontFile(const char *bdf_font, const char *fontname,
-                             const char *utf8_text,
+                             const std::string& utf8_characters,
                              int chosen_baseline,
                              const std::string& directory) {
   Font font;
@@ -372,14 +388,18 @@ static bool GenerateFontFile(const char *bdf_font, const char *fontname,
   }
 
   std::set<uint16_t> relevant_chars;
-  for (const char *utfchars = utf8_text; *utfchars; /**/) {
-    const uint32_t cp = utf8_next_codepoint(utfchars);
-    if (font.CharacterWidth(cp) < 0) {
-      fprintf(stderr, "Excluding codepoint U+%04x, which is not "
-              "included in font\n", cp);
-      continue;
+  if (utf8_characters.empty()) {
+    font.GetCodepoints(&relevant_chars);
+  } else {
+    for (const char *utfchars = utf8_characters.c_str(); *utfchars; /**/) {
+      const uint32_t cp = utf8_next_codepoint(utfchars);
+      if (font.CharacterWidth(cp) < 0) {
+        fprintf(stderr, "Excluding codepoint U+%04x, which is not "
+                "included in font\n", cp);
+        continue;
+      }
+      relevant_chars.insert(cp);
     }
-    relevant_chars.insert(cp);
   }
 
   if (relevant_chars.empty()) {
@@ -403,6 +423,11 @@ static bool GenerateFontFile(const char *bdf_font, const char *fontname,
 
   const char *const font_file_basename = basename(strdup(bdf_font));
 
+  const char *const display_chars =
+    utf8_characters.empty()
+    ? "(all characters from font)"
+    : (utf8_characters.size() < 120) ? utf8_characters.c_str() : "(large list)";
+
   // Generate header.
   std::string header_filename = directory + "/font-" + fontname + ".h";
   FILE *header_file = fopen(header_filename.c_str(), "w");
@@ -413,7 +438,7 @@ static bool GenerateFontFile(const char *bdf_font, const char *fontname,
   fprintf(header_file, kHeaderTemplate, font_file_basename,
           font.fontname().c_str(),
           font.height(), font.baseline() - meta_collector.offset_y(),
-          utf8_text,
+          display_chars,
           fontname, fontname,
           (int)relevant_chars.size(),
           fontname, fontname);
@@ -431,13 +456,14 @@ static bool GenerateFontFile(const char *bdf_font, const char *fontname,
   fprintf(code_file, kCodeHeader, font_file_basename,
           font.fontname().c_str(),
           font.height(), font.baseline() - meta_collector.offset_y(),
-          utf8_text,
+          display_chars,
           fontname);
   GlyphEmitter glyph_emitter(code_file,
                              meta_collector.offset_y(),
                              meta_collector.stripes());
   for (auto c : relevant_chars) {
-    glyph_emitter.Emit(font, c);
+    if (!glyph_emitter.Emit(font, c))
+      return false;
   }
 
   glyph_emitter.EmitChars();
@@ -478,13 +504,29 @@ static bool GenerateSupportFiles(const std::string& dir) {
   return true;
 }
 
+static bool ReadFileIntoString(const char *filename, std::string *out) {
+  char buffer[1024];
+  int fd = open(filename, O_RDONLY);
+  if (fd < 0) { perror(filename); return false; };
+  int r;
+  while ((r = read(fd, buffer, sizeof(buffer))) > 0) {
+    out->append(buffer, r);
+  }
+  // If there is a newline at the very end, it was probably not meant to be
+  // there. Still possible to include a \n if it is in the middle of text.
+  if (out->at(out->size()-1) == '\n')
+    out->resize(out->size()-1);
+  return true;
+}
+
 int main(int argc, char *argv[]) {
   int chosen_baseline = -1;
   std::string directory = ".";
   bool create_support_files = false;
+  std::string relevant_chars;
 
   int opt;
-  while ((opt = getopt(argc, argv, "b:d:s")) != -1) {
+  while ((opt = getopt(argc, argv, "b:d:sc:C:")) != -1) {
     switch (opt) {
     case 'b':
       chosen_baseline = atoi(optarg);
@@ -494,6 +536,13 @@ int main(int argc, char *argv[]) {
       break;
     case 's':
       create_support_files = true;
+      break;
+    case 'c':
+      relevant_chars = optarg;
+      break;
+    case 'C':
+      if (!ReadFileIntoString(optarg, &relevant_chars))
+        return usage(argv[0]);
       break;
     default:
       return usage(argv[0]);
@@ -505,13 +554,13 @@ int main(int argc, char *argv[]) {
     ++any_operation;
     if (!GenerateSupportFiles(directory)) return 1;
   }
-  if (argc - optind > 0) {
+  if (argc - optind > 0 || !relevant_chars.empty()) {
     ++any_operation;
-    if (argc - optind != 3) {
-      fprintf(stderr, "Not enough parameters to create font-files\n");
+    if (argc - optind != 2) {
+      fprintf(stderr, "Expected bdf-file and fontname\n");
       return usage(argv[0]);
     }
-    if (!GenerateFontFile(argv[optind], argv[optind+1], argv[optind+2],
+    if (!GenerateFontFile(argv[optind], argv[optind+1], relevant_chars,
                           chosen_baseline, directory)) {
       return 1;
     }
