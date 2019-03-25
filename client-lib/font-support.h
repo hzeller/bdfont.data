@@ -31,8 +31,11 @@ extern "C" {
  * Only use the functions below to access the fonts.
  */
 struct GlyphData {
+  /* Public interface */
   uint16_t codepoint;        /* Unicode 16 code-point. */
   uint8_t width;             /* Individual width of this one. */
+
+  /* Private interface, might change without notice */
   uint8_t left_margin  : 4;  /* Left empty space */
   uint8_t right_margin : 4;  /* Right empty space */
   uint8_t stripe_begin : 4;  /* Empty Y-stripes skipped in data. */
@@ -42,9 +45,12 @@ struct GlyphData {
 } __attribute__((packed));
 
 struct FontData {
+  /* Public interface */
   uint16_t available_glyphs; /* Number of glyphs in this font. */
   uint8_t baseline;          /* Position of baseline from rendering top */
   uint8_t stripes;           /* height in 8px high stripes. */
+
+  /* Private interface, might change without notice */
   const uint8_t *bits;
   const struct GlyphData *glyphs;
 } __attribute__((packed));
@@ -55,6 +61,12 @@ struct FontData {
 #else
 #  define PROGMEM
 #endif
+
+/* Find glyph for given codepoint or NULL if it does not exist.
+ * Note: on AVR, this returns a pointer to PROGMEM memory
+ */
+const struct GlyphData *find_glyph(const struct FontData *font,
+                                   int16_t codepoint);
 
 /* Emit the bytes for a glyph with the given basic plane unicode "codepoint"
  * Returns width that has been drawn or 0 if the character was not defined.

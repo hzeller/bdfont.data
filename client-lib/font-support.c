@@ -32,11 +32,16 @@ static int glyph_compare(const void *key, const void *element) {
   return search_codepoint - codepoint;
 }
 
-static const struct GlyphData *find_glyph(const struct FontData *font,
-                                          int16_t codepoint) {
+static const struct GlyphData *find_glyph_internal(const struct FontData *font,
+                                                   int16_t codepoint) {
   return (const struct GlyphData*)
     (bsearch(&codepoint, font->glyphs, font->available_glyphs,
              sizeof(struct GlyphData), glyph_compare));
+}
+
+const struct GlyphData *find_glyph(const struct FontData *font,
+                                   int16_t codepoint) {
+  return find_glyph_internal(font, codepoint);
 }
 
 uint8_t EmitGlyph(const struct FontData *font, uint16_t codepoint,
@@ -47,7 +52,7 @@ uint8_t EmitGlyph(const struct FontData *font, uint16_t codepoint,
   memcpy_P(&unpacked_font, font, sizeof(unpacked_font));
   font = &unpacked_font;
 #endif
-  const struct GlyphData *glyph = find_glyph(font, codepoint);
+  const struct GlyphData *glyph = find_glyph_internal(font, codepoint);
   if (glyph == NULL) return 0;
 #ifdef __AVR__
   struct GlyphData unpacked_glyph;
