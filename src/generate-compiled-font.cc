@@ -74,7 +74,7 @@ static int usage(const char *prog) {
   fprintf(stderr, "usage: %s [options] [<bdf-file> <fontname>]\n", prog);
   fprintf(stderr, "Options:\n"
           "  -c <inc-chars>: Characters to include in font. UTF8-string.\n"
-          "  -C <char-file>: Read characters to include from file\n"
+          "  -C <char-file>: Read characters to include from file.\n"
           "  -d <directory>: Output files to given directory instead of ./\n"
           "  -b <baseline> : Choose fixed baseline. This allows "
           "choice of pixel-exact vertical\n"
@@ -82,11 +82,12 @@ static int usage(const char *prog) {
           "shifting at runtime.\n"
           "  -s            : Create font-support.{h,c} files.\n"
           "\n");
-  fprintf(stderr, "To generate font-code, three parameters are required:\n"
+  fprintf(stderr, "To generate font-code, two parameters are required:\n"
           " <bdf-file>     : Path to the input BDF font file.\n"
           " <fontname>     : The generated font is named like this.\n"
           " With -c or -C, you can specify which characters are included.\n"
-          "(Otherwise all in font are included which likely not fits.)");
+          "(Otherwise all glyphs in font are included which likely not fits in"
+          " flash)\n");
   fprintf(stderr, "This outputs font-$(fontname).h font-$(fontname).c\n");
   return 1;
 }
@@ -544,6 +545,7 @@ int main(int argc, char *argv[]) {
       if (!ReadFileIntoString(optarg, &relevant_chars))
         return usage(argv[0]);
       break;
+      // TODO: provide regex-pattern to include relevant chars "[0-9][a-zA-Z]"
     default:
       return usage(argv[0]);
     }
@@ -567,9 +569,10 @@ int main(int argc, char *argv[]) {
   }
 
   if (!any_operation) {
-    fprintf(stderr, "No operation selected. \n"
+    fprintf(stderr, "No operation selected.\n"
+            " * Supply font-parameters to create compilable font files\n"
             " * Use -s to generate support files\n"
-            " * Supply font-parameters to create compilable font files\n");
+            );
     return usage(argv[0]);
   }
   return 0;

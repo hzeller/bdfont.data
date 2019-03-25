@@ -43,7 +43,7 @@ your program strings.
 ```bash
 make -C src
 # Invoking tool. Multiple instances of same character is only included once.
-src/bdfont-data-gen path/to/font.bdf myfontname "01234567890μHelloWorld"
+src/bdfont-data-gen -c "01234567890μHelloWorld" path/to/font.bdf myfontname
 ```
 
 Optionally install with
@@ -56,16 +56,17 @@ sudo make -C src install
 usage: ./bdfont-data-gen [options] [<bdf-file> <fontname>]
 Options:
   -c <inc-chars>: Characters to include in font. UTF8-string.
-  -C <char-file>: Read characters to include from file
+  -C <char-file>: Read characters to include from file.
   -d <directory>: Output files to given directory instead of ./
   -b <baseline> : Choose fixed baseline. This allows choice of pixel-exact vertical
                   alignment at compile-time vs. need for shifting at runtime.
   -s            : Create font-support.{h,c} files.
 
-To generate font-code, three parameters are required:
+To generate font-code, two parameters are required:
  <bdf-file>     : Path to the input BDF font file.
  <fontname>     : The generated font is named like this.
  With -c or -C, you can specify which characters are included.
+(Otherwise all glyphs in font are included which likely not fits in flash)
 This outputs font-$(fontname).h font-$(fontname).c
 ```
 
