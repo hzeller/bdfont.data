@@ -86,9 +86,11 @@ multiples of 8 unless bit-shifting is applied.
 Fonts might need multiple of these stripes.
 Future versions of `bdfont-data-gen` might also create horizontal bitmaps.
 
-The runtime-support provides functions and macros to access and decode
-the generated font. In particular for decoding the font, there is an
-`emit_glyph()` function and an `EMIT_GLYPH()` macro available.
+The [runtime-support](./client-lib/font-support.h) provides functions and
+macros to access and decode the generated font.
+Finding a glyph in the font is provided by `bdfont_find_glyph()`.
+Decoding is done with either the `bdfont_emit_glyph()` function or the
+`BDFONT_EMIT_GLYPH()` macro.
 
 ```c
 /**
@@ -134,3 +136,18 @@ for (const char *txt = "Hello World"; *txt; ++txt) {
 
 The generated code works with Harvard arch AVR PROGMEM as well as von-Neumann
 memory models (`#ifdef __AVR__` choses different code-variants).
+
+Typically, you'd generate the font files by adding a rule to a Makefile. I
+usually have the relevant chars in a file `<fontname>.chars` which is getting
+updated whenever new characters are needed. In the following example, a
+`font-smalltext.c` is generated from a file `smalltext.bdf` using the
+characters in `smalltext.chars`. Whenever that set of chars is updated,
+make automatically generates a new version of `font-smalltext.c`:
+
+
+```Makefile
+mybinary : mybinary.c font-smalltext.c
+
+font-%.c: %.chars
+	bdfont-data-gen -s $*.bdf $* -C $<
+```
