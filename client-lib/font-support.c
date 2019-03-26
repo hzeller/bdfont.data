@@ -1,20 +1,19 @@
 /* -*- mode: c; c-basic-offset: 2; indent-tabs-mode: nil; -*-
- *
- * Copyright (C) 2019 Henner Zeller <h.zeller@acm.org>
  * This is part of http://github.com/hzeller/bdfont.data
  *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation, either version 3 of the License, or
- * (at your option) any later version.
+ * Copyright (C) 2019 Henner Zeller <h.zeller@acm.org>
  *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
- * You should have received a copy of the GNU General Public License
- * along with this program.  If not, see <https://www.gnu.org/licenses/>.
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 
 #include "font-support.h"
@@ -41,10 +40,7 @@ const struct GlyphData *find_glyph(const struct FontData *font,
 
 uint8_t EmitGlyph(const struct FontData *font, uint16_t codepoint,
                   StartStripe start_stripe, EmitFun emit, void *userdata) {
-  uint8_t width = 0;
-  EMIT_GLYPH(font, codepoint, 1,
-             { width = glyph_width;
-               start_stripe(stripe, glyph_width, userdata); },
-             { emit(x, b, userdata); });
-  return width;
+  return EMIT_GLYPH(font, codepoint, 1,
+                    { start_stripe(stripe, glyph_width, userdata); },
+                    { emit(x, b, userdata); });
 }
