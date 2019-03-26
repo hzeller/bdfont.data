@@ -25,8 +25,12 @@ extern "C" {
 
 #include <stdint.h>
 
-/* Treat these types as opaque types as they might change.
- * Only use the functions below to access the fonts.
+/* Some of the fields in these types are stable and can be used in code,
+ * while everything in the 'private interface' section should be treated as
+ * opaque data as they might change.
+ *
+ * Only use the bdfont_emit_glyph() function or BDFONT_EMIT_GLYPH() macro below
+ * to extract the bytes from the font, as the encoding might change.
  */
 struct GlyphData {
   /* Public interface */
@@ -54,11 +58,12 @@ struct FontData {
 } __attribute__((packed));
 
 /**
- * Find glyph for given codepoint or NULL if it does not exist.
+ * Find glyph for given codepoint. Returns pointer to GlyphData or NULL
+ * if it does not exist.
  * Note: on AVR, this returns a pointer to PROGMEM memory.
  */
-const struct GlyphData *find_glyph(const struct FontData *font,
-                                   int16_t codepoint);
+const struct GlyphData *bdfont_find_glyph(const struct FontData *font,
+                                          int16_t codepoint);
 
 /**
  * Emit the bytes for a glyph with the given basic plane unicode "codepoint"
@@ -68,17 +73,19 @@ const struct GlyphData *find_glyph(const struct FontData *font,
  * information about which stripe and the expected width.
  * Then an EmitFun() call that emits a single byte at given x-position
  * representing 8 vertical pixels.
+ *
  * Both functions get passed in some void pointer with user-data.
- * TODO: function callbacks might not be the most code-space efficient on AVR,
- *       find some readable alternative.
+ *
+ * Returns width of the character or 0 if it does not exist in the font.
  */
-typedef void (*StartStripe)(uint8_t stripe, uint8_t width, void *userdata);
-typedef void (*EmitFun)(uint8_t x, uint8_t bits, void *userdata);
-uint8_t EmitGlyph(const struct FontData *font, uint16_t codepoint,
-                  StartStripe start_stripe, EmitFun emit, void *userdata);
+typedef void (*bdf_StartStripe)(uint8_t stripe, uint8_t width, void *userdata);
+typedef void (*bdf_EmitFun)(uint8_t x, uint8_t bits, void *userdata);
+uint8_t bdfont_emit_glyph(const struct FontData *font, uint16_t codepoint,
+                          bdf_StartStripe start_stripe, bdf_EmitFun emit,
+                          void *userdata);
 
 /* If this code is used in AVR, data is stuffed away into PROGMEM memory.
- * so needs to be dealt with specially
+ * so needs to be dealt with specially.
  */
 #ifdef __AVR__
 #  include <avr/pgmspace.h>
@@ -94,45 +101,61 @@ uint8_t EmitGlyph(const struct FontData *font, uint16_t codepoint,
 #endif
 
 /**
- * This is a macro version of the EmitGlyph() function call above.
- * Similar to that, it allows to pass in a "font" pointer, a
- * 16Bit-"codepoint" and a block to be called with access to the data.
- * The "start_stripe_call" and "emit_call" should be {}-braced blocks
- * of simple code to be executed for each start of a new stripe and
- * new byte (Note that the macro preprocessor might get confused with
- * too complicated {} blocks, so keep it simple).
+ * This is a macro version of the bdfont_emit_glyph() function call above.
+ * It allows for somewhat more readable code that can also be smaller (if
+ * you only expand it once), which can be important in embedded situations
+ * saving a few tens of bytes of code.
  *
- * Within "start_stripe_call", there is a variable "stripe" and "glyph_width"
- * in scope.
- * Within "emit_call", a variable "x", "b" (the byte to be written) (as well
- * as "stripe" and "glyph_width").
+ * Similar to the function, it allows to pass in a "font" pointer, a
+ * 16Bit-"codepoint" and a block to be called with access to the data.
+ * The "start_stripe_call", "emit_call" and "end_stripe_call" should be
+ * {}-braced blocks of simple code to be executed for each start of a
+ * new stripe, each byte in a stripe and finish of a stripe (Note that
+ * the macro preprocessor might get confused with too complicated {} blocks,
+ * so keep it simple).
+ *
+ * Unlike a function call with parameters, the code blocks have access
+ * to name values visible in their scope.
+ * Within "start_stripe_call" and "end_stripe_call" there is a variable
+ * "stripe" and "glyph_width" visible.
+ * Within "emit_call", in addition to the values above, a variable
+ * named "b" (the byte to be written) and "x" (x-coordinate) are visible in
+ * that scope.
+ *
+ * The "emit_empty_bytes" needs to evaluate to a boolean; if 'true', all
+ * bytes are emitted, if 'false', zero bytes at the margins of characters
+ * are omitted.
+ *
+ * The macro returns the width of the character or 0 if it does not exist in
+ * the font (this is using a commonly available gcc and clang statement
+ * expression extension).
  *
  * Simple Example (Iterating through an ASCII string and display):
    int xpos = 0;
    uint8_t *write_pos;
    for (const char *txt = "Hello World"; *txt; ++txt) {
-     xpos += EMIT_GLYPH(&font_foo, *txt, 1,
-                        { write_pos = framebuffer + stripe * 128 + xpos; },
-                        { *write_pos++ = b; });
+     xpos += BDFONT_EMIT_GLYPH(&font_foo, *txt, 1,
+                               { write_pos = framebuffer + stripe*128 + xpos; },
+                               { *write_pos++ = b; },
+                               {});
    }
  *
  * Why macro ? This is a pure C-compatible way that allows the compiler to see
  * more optimization opportunities (e.g. optimize out blocks of code if
- * "emit_empty_bytes" is set to false), so that in embedded devices a few
- * tens of bytes code-saving can happen.
- * For everything else, using the EmitGlyph() function is probably the more
- * sane way.
+ * "emit_empty_bytes" is set to false), so more code savings are possible.
+ * It also allows for somewhat more readable code than the callback-based
+ * version, but of course the usual caveats of macro-expansions apply.
  *
- * Note1, the "emit_call" block is expanded multiple times, so keep it
+ * Note: the "emit_call" block is expanded multiple times, so keep it
  * short or make a function call.
- * Note2, this uses the gcc statement expression extension to return a value.
  */
-#define EMIT_GLYPH(font, codepoint, emit_empty_bytes,                   \
-                   start_stripe_call, emit_call) ({                     \
+#define BDFONT_EMIT_GLYPH(font, codepoint, emit_empty_bytes,            \
+                          start_stripe_call, emit_call, end_stripe_call) \
+  ({                                                                    \
     int _return_glyph_width = 0;                                        \
     const struct FontData *_font = (font);                              \
     _bdfont_data_unpack_memory(struct FontData, _font);                 \
-    const struct GlyphData *_glyph = find_glyph(_font, codepoint);      \
+    const struct GlyphData *_glyph = bdfont_find_glyph(_font, codepoint); \
     if (_glyph != NULL) {                                               \
       _bdfont_data_unpack_memory(struct GlyphData, _glyph);             \
       const uint8_t *_bits = _font->bits + _glyph->data_offset;         \
@@ -156,6 +179,7 @@ uint8_t EmitGlyph(const struct FontData *font, uint16_t codepoint,
               do { emit_call } while(0); /* contain break/continue */   \
             }                                                           \
           }                                                             \
+          do { end_stripe_call } while(0);                              \
           continue;                                                     \
         }                                                               \
                                                                         \
@@ -183,7 +207,7 @@ uint8_t EmitGlyph(const struct FontData *font, uint16_t codepoint,
             _x++;                                                       \
           } else {                                                      \
             uint8_t _rlcounts;                                          \
-            for (_rlcounts = _data_byte; _rlcounts; _rlcounts >>= _rle_shift) { \
+            for (_rlcounts=_data_byte; _rlcounts; _rlcounts >>= _rle_shift) { \
               uint8_t _repetition_count = _rlcounts & _rle_mask;        \
               _data_byte = _bdfont_data_get_bits(_bits++);              \
               while (_repetition_count--) {                             \
@@ -195,6 +219,7 @@ uint8_t EmitGlyph(const struct FontData *font, uint16_t codepoint,
             }                                                           \
           }                                                             \
         }                                                               \
+        do { end_stripe_call } while(0); /* contain break/continue */   \
       }                                                                 \
     }                                                                   \
     _return_glyph_width;                                                \

@@ -86,35 +86,49 @@ multiples of 8 unless bit-shifting is applied.
 Fonts might need multiple of these stripes.
 Future versions of `bdfont-data-gen` might also create horizontal bitmaps.
 
-The runtime-support currently is a pretty simple function `EmitGlyph()` that
-expects callbacks that it calls with the bitmap data; see `font-support.h`
+The runtime-support provides functions and macros to access and decode
+the generated font. In particular for decoding the font, there is an
+`emit_glyph()` function and an `EMIT_GLYPH()` macro available.
 
 ```c
-/* Emit the bytes for a glyph with the given basic plane unicode "codepoint"
+/**
+ * Emit the bytes for a glyph with the given basic plane unicode "codepoint"
  * Returns width that has been drawn or 0 if the character was not defined.
  *
  * This calls callbacks to two functions: one to start a new stripe, providing
- * information about which stripe and the expected width. Then an EmitFun() call
- * that emits a single byte at given x-position representing 8 vertical pixels.
+ * information about which stripe and the expected width.
+ * Then an EmitFun() call that emits a single byte at given x-position
+ * representing 8 vertical pixels.
+ *
  * Both functions get passed in some void pointer with user-data.
+ *
+ * Returns width of the character or 0 if it does not exist in the font.
  */
 typedef void (*StartStripe)(uint8_t stripe, uint8_t width, void *userdata);
 typedef void (*EmitFun)(uint8_t x, uint8_t bits, void *userdata);
-uint8_t EmitGlyph(const struct FontData *font, uint16_t codepoint,
-                  StartStripe start_stripe, EmitFun emit, void *userdata);
+uint8_t emit_bdfont_glyph(const struct FontData *font, uint16_t codepoint,
+                          StartStripe start_stripe, EmitFun emit,
+			  void *userdata);
 ```
 
-For embedded devices, there is also a version of the above that works with
-a macro call, that can help reducing generated code overhad. The macro
-approach allows for somewhat readable 'closure'-like code even in plain C:
+There is also a version of the above that works with a macro call, which can
+help reducing generated code overhad.
+The macro approach allows for somewhat readable 'closure'-like code even in
+plain C.
+All the usual caveats with macros apply, in particular if you expand it
+multiple times, you'll blow up the code-segment; applied thoughtfully, it can
+result in more readable code that allows (on AVR) in the order of >100 bytes
+space savings than the callback version.
 
+Simple ASCII Example:
 ```c
 int xpos = 0;
 uint8_t *write_pos;
 for (const char *txt = "Hello World"; *txt; ++txt) {
-  xpos += EMIT_GLYPH(&font_foo, *txt, true,
-                     { write_pos = framebuffer + stripe * 128 + xpos; },
-                     { *write_pos++ = b; });
+  xpos += EMIT_BDFONT_GLYPH(&font_foo, *txt, true,
+                            { write_pos = framebuffer + stripe * 128 + xpos; },
+                            { *write_pos++ = b; },
+		            {});
 }
 ```
 

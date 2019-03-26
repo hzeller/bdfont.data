@@ -31,16 +31,18 @@ static int glyph_compare(const void *key, const void *element) {
   return search_codepoint - codepoint;
 }
 
-const struct GlyphData *find_glyph(const struct FontData *font,
-                                   int16_t codepoint) {
+const struct GlyphData *bdfont_find_glyph(const struct FontData *font,
+                                          int16_t codepoint) {
   return (const struct GlyphData*)
     (bsearch(&codepoint, font->glyphs, font->available_glyphs,
              sizeof(struct GlyphData), glyph_compare));
 }
 
-uint8_t EmitGlyph(const struct FontData *font, uint16_t codepoint,
-                  StartStripe start_stripe, EmitFun emit, void *userdata) {
-  return EMIT_GLYPH(font, codepoint, 1,
-                    { start_stripe(stripe, glyph_width, userdata); },
-                    { emit(x, b, userdata); });
+uint8_t bdfont_emit_glyph(const struct FontData *font, uint16_t codepoint,
+                          bdf_StartStripe start_stripe, bdf_EmitFun emit,
+                          void *userdata) {
+  return BDFONT_EMIT_GLYPH(font, codepoint, 1,
+                           { start_stripe(stripe, glyph_width, userdata); },
+                           { emit(x, b, userdata); },
+                           {});
 }
