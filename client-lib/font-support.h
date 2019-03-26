@@ -145,7 +145,7 @@ uint8_t EmitGlyph(const struct FontData *font, uint16_t codepoint,
       const uint8_t glyph_width = _glyph->width;                        \
       for (_stripe = 0; _stripe < _font->stripes; ++_stripe) {          \
         const uint8_t stripe = _stripe;                                 \
-        { start_stripe_call }                                           \
+        do { start_stripe_call } while(0); /* contain break/continue */ \
                                                                         \
         /* Empty data for empty stripes */                              \
         if (_stripe < _glyph->stripe_begin || _stripe >= _glyph->stripe_end) { \
@@ -153,7 +153,7 @@ uint8_t EmitGlyph(const struct FontData *font, uint16_t codepoint,
             for (_x = 0; _x < _glyph->width; ++_x) {                    \
               const uint8_t b = 0x00;                                   \
               const uint8_t x = _x;                                     \
-              { emit_call }                                             \
+              do { emit_call } while(0); /* contain break/continue */   \
             }                                                           \
           }                                                             \
           continue;                                                     \
@@ -168,7 +168,7 @@ uint8_t EmitGlyph(const struct FontData *font, uint16_t codepoint,
             if (emit_empty_bytes) {                                     \
               const uint8_t b = 0x00;                                   \
               const uint8_t x = _x;                                     \
-              { emit_call }                                             \
+              do { emit_call } while(0); /* contain break/continue */   \
             }                                                           \
             _x++;                                                       \
             continue;                                                   \
@@ -179,7 +179,7 @@ uint8_t EmitGlyph(const struct FontData *font, uint16_t codepoint,
           if (_glyph->rle_type == 0) {                                  \
             const uint8_t b = _data_byte;                               \
             const uint8_t x = _x;                                       \
-            { emit_call }                                               \
+            do { emit_call } while(0); /* contain break/continue */     \
             _x++;                                                       \
           } else {                                                      \
             uint8_t _rlcounts;                                          \
@@ -189,7 +189,7 @@ uint8_t EmitGlyph(const struct FontData *font, uint16_t codepoint,
               while (_repetition_count--) {                             \
                 const uint8_t b = _data_byte;                           \
                 const uint8_t x = _x;                                   \
-                { emit_call }                                           \
+                do { emit_call } while(0); /* contain break/continue */ \
                 _x++;                                                   \
               }                                                         \
             }                                                           \
