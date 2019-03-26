@@ -104,5 +104,19 @@ uint8_t EmitGlyph(const struct FontData *font, uint16_t codepoint,
                   StartStripe start_stripe, EmitFun emit, void *userdata);
 ```
 
+For embedded devices, there is also a version of the above that works with
+a macro call, that can help reducing generated code overhad. The macro
+approach allows for somewhat readable 'closure'-like code even in plain C:
+
+```c
+int xpos = 0;
+uint8_t *write_pos;
+for (const char *txt = "Hello World"; *txt; ++txt) {
+  xpos += EMIT_GLYPH(&font_foo, *txt, true,
+                     { write_pos = framebuffer + stripe * 128 + xpos; },
+                     { *write_pos++ = b; });
+}
+```
+
 The generated code works with Harvard arch AVR PROGMEM as well as von-Neumann
 memory models (`#ifdef __AVR__` choses different code-variants).

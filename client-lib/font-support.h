@@ -129,7 +129,7 @@ uint8_t EmitGlyph(const struct FontData *font, uint16_t codepoint,
  */
 #define EMIT_GLYPH(font, codepoint, emit_empty_bytes,                   \
                    start_stripe_call, emit_call) ({                     \
-    int _return_glyph_width = 0;                     \
+    int _return_glyph_width = 0;                                        \
     const struct FontData *_font = (font);                              \
     _bdfont_data_unpack_memory(struct FontData, _font);                 \
     const struct GlyphData *_glyph = find_glyph(_font, codepoint);      \
