@@ -42,7 +42,7 @@ const struct GlyphData *find_glyph(const struct FontData *font,
 uint8_t EmitGlyph(const struct FontData *font, uint16_t codepoint,
                   StartStripe start_stripe, EmitFun emit, void *userdata) {
   uint8_t width = 0;
-  EMIT_GLYPH(font, codepoint,
+  EMIT_GLYPH(font, codepoint, 1,
              { width = glyph_width;
                start_stripe(stripe, glyph_width, userdata); },
              { emit(x, b, userdata); });
