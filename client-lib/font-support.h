@@ -55,13 +55,6 @@ struct FontData {
   const struct GlyphData *glyphs;
 } __attribute__((packed));
 
-/* If this code is used in AVR, data is stuffed away into PROGMEM memory. */
-#ifdef __AVR__
-#  include <avr/pgmspace.h>
-#else
-#  define PROGMEM
-#endif
-
 /* Find glyph for given codepoint or NULL if it does not exist.
  * Note: on AVR, this returns a pointer to PROGMEM memory
  */
@@ -83,27 +76,29 @@ typedef void (*EmitFun)(uint8_t x, uint8_t bits, void *userdata);
 uint8_t EmitGlyph(const struct FontData *font, uint16_t codepoint,
                   StartStripe start_stripe, EmitFun emit, void *userdata);
 
+/* If this code is used in AVR, data is stuffed away into PROGMEM memory.
+ * so needs to be dealt with specially
+ */
 #ifdef __AVR__
-#  define _font_get_bits(b) pgm_read_byte(b)
-#else
-#  define _font_get_bits(b) *b
-#endif
-
-#ifdef __AVR__
-#  define _unpack_memory(Type, variable)        \
+#  include <avr/pgmspace.h>
+#  define _bdfont_data_get_bits(b) pgm_read_byte(b)
+#  define _bdfont_data_unpack_memory(Type, variable)                    \
   Type _unpacked_##variable;                                            \
   memcpy_P(&_unpacked_##variable, variable, sizeof(_unpacked_##variable)); \
   variable = &_unpacked_##variable
 #else
-#  define _unpack_memory(Type, variable) do {} while(0)
+#  define PROGMEM
+#  define _bdfont_data_get_bits(b) *b
+#  define _bdfont_data_unpack_memory(Type, variable) do {} while(0)
 #endif
 
-#define EMIT_GLYPH(font_in, codepoint, emit_empty_bytes, start_stripe, emit) { \
-    const struct FontData *_font = (font_in);                           \
-    _unpack_memory(struct FontData, _font);                             \
+#define EMIT_GLYPH(font, codepoint, emit_empty_bytes,                   \
+                   start_stripe_call, emit_call) {                      \
+    const struct FontData *_font = (font);                              \
+    _bdfont_data_unpack_memory(struct FontData, _font);                 \
     const struct GlyphData *_glyph = find_glyph(_font, codepoint);      \
     if (_glyph == NULL) return 0;                                       \
-    _unpack_memory(struct GlyphData, _glyph);                           \
+    _bdfont_data_unpack_memory(struct GlyphData, _glyph);               \
     const uint8_t *_bits = _font->bits + _glyph->data_offset;           \
     const uint8_t _rle_mask = (_glyph->rle_type == 1) ? 0x0f : 0x03;    \
     const uint8_t _rle_shift = (_glyph->rle_type == 1) ? 4 : 2;         \
@@ -112,8 +107,10 @@ uint8_t EmitGlyph(const struct FontData *font, uint16_t codepoint,
     uint8_t _x;                                                         \
     const uint8_t glyph_width = _glyph->width;                          \
     for (_stripe = 0; _stripe < _font->stripes; ++_stripe) {            \
-      { const uint8_t stripe = _stripe;                                 \
-        start_stripe }                                                  \
+      {                                                                 \
+        const uint8_t stripe = _stripe;                                 \
+        { start_stripe_call }                                           \
+      }                                                                 \
                                                                         \
       /* Empty data for empty stripes */                                \
       if (_stripe < _glyph->stripe_begin || _stripe >= _glyph->stripe_end) { \
@@ -121,7 +118,7 @@ uint8_t EmitGlyph(const struct FontData *font, uint16_t codepoint,
           for (_x = 0; _x < _glyph->width; ++_x) {                      \
             const uint8_t b = 0x00;                                     \
             const uint8_t x = _x;                                       \
-            emit;                                                       \
+            { emit_call }                                                \
           }                                                             \
         }                                                               \
         continue;                                                       \
@@ -136,28 +133,28 @@ uint8_t EmitGlyph(const struct FontData *font, uint16_t codepoint,
           if (emit_empty_bytes) {                                       \
             const uint8_t b = 0x00;                                     \
             const uint8_t x = _x;                                       \
-            emit;                                                       \
+            { emit_call }                                               \
           }                                                             \
           _x++;                                                         \
           continue;                                                     \
         }                                                               \
                                                                         \
-        uint8_t _data_byte = _font_get_bits(_bits++);                   \
+        uint8_t _data_byte = _bdfont_data_get_bits(_bits++);            \
                                                                         \
         if (_glyph->rle_type == 0) {                                    \
           const uint8_t b = _data_byte;                                 \
           const uint8_t x = _x;                                         \
-          emit;                                                         \
+          { emit_call }                                                 \
           _x++;                                                         \
         } else {                                                        \
           uint8_t _rlcounts;                                            \
           for (_rlcounts = _data_byte; _rlcounts; _rlcounts >>= _rle_shift) { \
             uint8_t _repetition_count = _rlcounts & _rle_mask;          \
-            _data_byte = _font_get_bits(_bits++);                       \
+            _data_byte = _bdfont_data_get_bits(_bits++);                \
             while (_repetition_count--) {                               \
               const uint8_t b = _data_byte;                             \
               const uint8_t x = _x;                                     \
-              emit ;                                                    \
+              { emit_call }                                             \
               _x++;                                                     \
             }                                                           \
           }                                                             \
