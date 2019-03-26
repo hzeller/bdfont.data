@@ -83,6 +83,85 @@ typedef void (*EmitFun)(uint8_t x, uint8_t bits, void *userdata);
 uint8_t EmitGlyph(const struct FontData *font, uint16_t codepoint,
                   StartStripe start_stripe, EmitFun emit, void *userdata);
 
+#ifdef __AVR__
+#  define _font_get_bits(b) pgm_read_byte(b)
+#else
+#  define _font_get_bits(b) *b
+#endif
+
+#ifdef __AVR__
+#  define _unpack_memory(Type, variable)        \
+  Type _unpacked_##variable;                                            \
+  memcpy_P(&_unpacked_##variable, variable, sizeof(_unpacked_##variable)); \
+  variable = &_unpacked_##variable
+#else
+#  define _unpack_memory(Type, variable) do {} while(0)
+#endif
+
+#define EMIT_GLYPH(font_in, codepoint, start_stripe, emit)  {           \
+  const struct FontData *_font = (font_in);                             \
+  _unpack_memory(struct FontData, _font);                               \
+  const struct GlyphData *_glyph = find_glyph(_font, codepoint);        \
+  if (_glyph == NULL) return 0;                                         \
+  _unpack_memory(struct GlyphData, _glyph);                             \
+  const uint8_t *_bits = _font->bits + _glyph->data_offset;             \
+  const uint8_t _rle_mask = (_glyph->rle_type == 1) ? 0x0f : 0x03;      \
+  const uint8_t _rle_shift = (_glyph->rle_type == 1) ? 4 : 2;           \
+                                                                        \
+  uint8_t _stripe;                                                      \
+  uint8_t _x;                                                           \
+  const uint8_t glyph_width = _glyph->width;                            \
+  for (_stripe = 0; _stripe < _font->stripes; ++_stripe) {              \
+    { const uint8_t stripe = _stripe;                                   \
+      start_stripe }                                                    \
+                                                                        \
+    /* Empty data for empty stripes */                                  \
+    if (_stripe < _glyph->stripe_begin || _stripe >= _glyph->stripe_end) { \
+      for (_x = 0; _x < _glyph->width; ++_x) {                          \
+        const uint8_t b = 0x00;                                         \
+        const uint8_t x = _x;                                           \
+        emit;                                                           \
+      }                                                                 \
+      continue;                                                         \
+    }                                                                   \
+                                                                        \
+    /* Stripes with data */                                             \
+    _x = 0;                                                             \
+    while (_x < _glyph->width) {                                        \
+      /* left and right margin are empty */                             \
+      if (_x < _glyph->left_margin ||                                   \
+          _x >= _glyph->width - _glyph->right_margin) {                 \
+        const uint8_t b = 0x00;                                         \
+        const uint8_t x = _x;                                           \
+        emit;                                                           \
+        _x++;                                                           \
+        continue;                                                       \
+      }                                                                 \
+                                                                        \
+      uint8_t _data_byte = _font_get_bits(_bits++);                     \
+                                                                        \
+      if (_glyph->rle_type == 0) {                                      \
+        const uint8_t b = _data_byte;                                   \
+        const uint8_t x = _x;                                           \
+        emit;                                                           \
+        _x++;                                                           \
+      } else {                                                          \
+        uint8_t _rlcounts;                                              \
+        for (_rlcounts = _data_byte; _rlcounts; _rlcounts >>= _rle_shift) { \
+          uint8_t _repetition_count = _rlcounts & _rle_mask;            \
+          _data_byte = _font_get_bits(_bits++);                         \
+          while (_repetition_count--) {                                 \
+            const uint8_t b = _data_byte;                               \
+            const uint8_t x = _x;                                       \
+            emit ;                                                      \
+            _x++;                                                       \
+          }                                                             \
+        }                                                               \
+      }                                                                 \
+    }                                                                   \
+  }                                                                     \
+}                                                                       \
+
 #ifdef __cplusplus
 }
 #endif
