@@ -7,7 +7,8 @@ Simple tool to generate bitmap-fonts to be compiled into static data C-structs
 from BDF fonts, including support functions to access them.
 
 The focus is to generate a somewhat compact representation of fonts suited
-for embedded systems with little flash memory.
+for embedded systems with little flash memory. In particular larger fonts
+benefit a lot from this.
 
 ### Compaction
 
@@ -60,7 +61,7 @@ Options:
   -d <directory>: Output files to given directory instead of ./
   -b <baseline> : Choose fixed baseline. This allows choice of pixel-exact vertical
                   alignment at compile-time vs. need for shifting at runtime.
-  -s            : Create font-support.{h,c} files.
+  -s            : Create bdfont-support.{h,c} files.
 
 To generate font-code, two parameters are required:
  <bdf-file>     : Path to the input BDF font file.
@@ -73,7 +74,7 @@ This outputs font-$(fontname).h font-$(fontname).c
 Invocation with `<bdf-file> <fontname> <relevantchars>` generates the files
 `font-myfontname.{h,c}` into the directory chosen with `-d`.
 
-You also need the files `font-supprt.{h,c}` in the target project, which
+You also need the files `bdfont-supprt.{h,c}` in the target project, which
 provides run-time support to access the font. You can emit these with
 the `-s` option. Make sure to re-create these files whenever the version
 of `bdfont-data-gen` changes, to be compatible with the generated files.
@@ -86,7 +87,7 @@ multiples of 8 unless bit-shifting is applied.
 Fonts might need multiple of these stripes.
 Future versions of `bdfont-data-gen` might also create horizontal bitmaps.
 
-The [runtime-support](./client-lib/font-support.h) provides functions and
+The [runtime-support](./client-lib/bdfont-support.h) provides functions and
 macros to access and decode the generated font.
 Finding a glyph in the font is provided by `bdfont_find_glyph()`.
 Decoding is done with either the `bdfont_emit_glyph()` function or the
@@ -108,7 +109,7 @@ Decoding is done with either the `bdfont_emit_glyph()` function or the
  */
 typedef void (*StartStripe)(uint8_t stripe, uint8_t width, void *userdata);
 typedef void (*EmitFun)(uint8_t x, uint8_t bits, void *userdata);
-uint8_t emit_bdfont_glyph(const struct FontData *font, uint16_t codepoint,
+uint8_t bdfont_emit_glyph(const struct FontData *font, uint16_t codepoint,
                           StartStripe start_stripe, EmitFun emit,
 			  void *userdata);
 ```
@@ -127,7 +128,7 @@ Simple ASCII Example:
 int xpos = 0;
 uint8_t *write_pos;
 for (const char *txt = "Hello World"; *txt; ++txt) {
-  xpos += EMIT_BDFONT_GLYPH(&font_foo, *txt, true,
+  xpos += BDFONT_EMIT_GLYPH(&font_foo, *txt, true,
                             { write_pos = framebuffer + stripe * 128 + xpos; },
                             { *write_pos++ = b; },
 		            {});

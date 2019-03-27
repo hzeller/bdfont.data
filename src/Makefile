@@ -10,7 +10,7 @@ install: bdfont-data-gen
 
 generate-compiled-font.o: generate-compiled-font.cc font-support-str.inc
 
-font-support-str.inc: ../client-lib/font-support.h ../client-lib/font-support.c
+font-support-str.inc: ../client-lib/bdfont-support.h ../client-lib/bdfont-support.c
 	./make-inc.sh $^ > $@
 
 clean:

@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-#include "font-support.h"
+#include "bdfont-support.h"
 
 #include <stdlib.h>
 

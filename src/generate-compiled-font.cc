@@ -32,10 +32,10 @@
 #include <vector>
 
 #include "bdf-font.h"
-#include "font-support.h"
+#include "bdfont-support.h"
 #include "utf8-internal.h"
 
-#include "font-support-str.inc"  // Verbatim font-support.{h,cc}
+#include "font-support-str.inc"  // Verbatim bdfont-support.{h,cc}
 
 // params: 4x fontname
 static constexpr char kHeaderTemplate[] =
@@ -49,7 +49,7 @@ static constexpr char kHeaderTemplate[] =
 #ifndef FONT_%s_
 #define FONT_%s_
 
-#include "font-support.h"
+#include "bdfont-support.h"
 
 /* font containing %d characters */
 extern const struct FontData PROGMEM font_%s;
@@ -80,7 +80,7 @@ static int usage(const char *prog) {
           "choice of pixel-exact vertical\n"
           "                  alignment at compile-time vs. need for "
           "shifting at runtime.\n"
-          "  -s            : Create font-support.{h,c} files.\n"
+          "  -s            : Create bdfont-support.{h,c} files.\n"
           "\n");
   fprintf(stderr, "To generate font-code, two parameters are required:\n"
           " <bdf-file>     : Path to the input BDF font file.\n"
@@ -269,7 +269,7 @@ protected:
   // the third byte is skipped.
   bool FinishChar(uint16_t codepoint) {
     // Since this is meant for embedded devices, we have limited the
-    // size of the variable holding the offsets (font-support.h). Make
+    // size of the variable holding the offsets (bdfont-support.h). Make
     // sure we don't go over this (which can be if -c or -C are omitted).
     constexpr int kMaxFontOffsetCapacityBits = 14;
     if (emitted_bytes_ > (2 << kMaxFontOffsetCapacityBits)) {
@@ -498,9 +498,9 @@ static bool WriteFile(const std::string& directory, const char *name,
 }
 
 static bool GenerateSupportFiles(const std::string& dir) {
-  if (!WriteFile(dir, "font-support.h", font_support_h))
+  if (!WriteFile(dir, "bdfont-support.h", bdfont_support_h))
     return false;
-  if (!WriteFile(dir, "font-support.c", font_support_c))
+  if (!WriteFile(dir, "bdfont-support.c", bdfont_support_c))
     return false;
   return true;
 }
