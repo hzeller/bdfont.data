@@ -293,7 +293,8 @@ protected:
     RLECompressor c4(4);
 
     // First, let's test if RLE will bring us anything, and which is better
-    const int baseline_bytes = (g_.stripe_end - g_.stripe_begin)*g_.width;
+    const int baseline_bytes = (g_.stripe_end - g_.stripe_begin)
+      * (g_.width - g_.left_margin - g_.right_margin);
     int c2_bytes = 0;
     int c4_bytes = 0;
     int x;
