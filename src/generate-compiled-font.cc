@@ -211,13 +211,15 @@ private:
 class GlyphEmitter : protected BitCanvas {
   static constexpr int kMaxFontWidth = 64;  // limit of our bdf-font
 public:
-  GlyphEmitter(FILE *out, bool request_plain_bytes, int offset_y, int stripes)
-    : out_(out),
+  GlyphEmitter(FILE *out, const char *fontname,
+               bool request_plain_bytes, int offset_y, int stripes)
+    : out_(out), fontname_(fontname),
       offset_y_(offset_y), stripes_(stripes),
       plain_bytes_override_(request_plain_bytes),
       data_(new uint8_t [kMaxFontWidth * stripes_]),
       emitted_bytes_(0) {
-    fprintf(out_, "static const uint8_t PROGMEM _font_data[] = {");
+    fprintf(out_, "static const uint8_t PROGMEM _font_data_%s[] = {",
+            fontname_);
   }
 
   bool Emit(const Font& font, uint32_t codepoint) {
@@ -230,7 +232,8 @@ public:
     fprintf(out_, "};\n\n");
 
     fprintf(out_,
-            "static const struct GlyphData PROGMEM _font_glyphs[] = {\n");
+            "static const struct GlyphData PROGMEM _font_glyphs_%s[] = {\n",
+            fontname_);
     for (const auto &g : glyphs_) {
       if (g.codepoint < 0x80) {
         fprintf(out_, "  {.codepoint = '%s%c',    ",
@@ -375,6 +378,7 @@ private:
   }
 
   FILE *const out_;
+  const char *const fontname_;
   const int offset_y_;
   const int stripes_;
   const bool plain_bytes_override_;
@@ -470,7 +474,7 @@ static bool GenerateFontFile(const char *bdf_font, const char *fontname,
           font.height(), font.baseline() - meta_collector.offset_y(),
           display_chars,
           fontname);
-  GlyphEmitter glyph_emitter(code_file, plain_bytes,
+  GlyphEmitter glyph_emitter(code_file, fontname, plain_bytes,
                              meta_collector.offset_y(),
                              meta_collector.stripes());
   for (auto c : relevant_chars) {
@@ -485,11 +489,12 @@ static bool GenerateFontFile(const char *bdf_font, const char *fontname,
           "  .available_glyphs = %d,\n"
           "  .baseline = %d,\n"
           "  .stripes = %d,\n"
-          "  .bits = _font_data,\n"
-          "  .glyphs = _font_glyphs\n};\n",
+          "  .bits = _font_data_%s,\n"
+          "  .glyphs = _font_glyphs_%s\n};\n",
           fontname, (int)relevant_chars.size(),
           font.baseline() - meta_collector.offset_y(),
-          meta_collector.stripes());
+          meta_collector.stripes(),
+          fontname, fontname);
   fclose(code_file);
 
   return true;
