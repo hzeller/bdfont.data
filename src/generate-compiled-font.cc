@@ -80,6 +80,11 @@ static int usage(const char *prog) {
           "choice of pixel-exact vertical\n"
           "                  alignment at compile-time vs. need for "
           "shifting at runtime.\n"
+          "  -p            : Plain bytes. Don't use RLE compression. Might\n"
+          "                  make (data+code) smaller if you set "
+          "-DBDFONT_USE_RLE=0 to\n"
+          "                  compile your project (typically only for tiny "
+          "fonts)\n"
           "  -s            : Create bdfont-support.{h,c} files.\n"
           "\n");
   fprintf(stderr, "To generate font-code, two parameters are required:\n"
@@ -206,11 +211,12 @@ private:
 class GlyphEmitter : protected BitCanvas {
   static constexpr int kMaxFontWidth = 64;  // limit of our bdf-font
 public:
-  GlyphEmitter(FILE *out,
-               int offset_y, int stripes)
+  GlyphEmitter(FILE *out, bool request_plain_bytes, int offset_y, int stripes)
     : out_(out),
       offset_y_(offset_y), stripes_(stripes),
-      data_(new uint8_t [kMaxFontWidth * stripes_]), emitted_bytes_(0) {
+      plain_bytes_override_(request_plain_bytes),
+      data_(new uint8_t [kMaxFontWidth * stripes_]),
+      emitted_bytes_(0) {
     fprintf(out_, "static const uint8_t PROGMEM _font_data[] = {");
   }
 
@@ -236,10 +242,12 @@ public:
       fprintf(out_, ".width=%2d, "
               ".stripe_begin=%d, .stripe_end=%d, "
               ".left_margin=%d, .right_margin=%d, "
-              ".rle_type=%d, .data_offset=%4d},\n",
+              "%s(%d)%s, .data_offset=%4d},\n",
               g.width,
               g.stripe_begin, g.stripe_end, g.left_margin, g.right_margin,
-              g.rle_type, g.data_offset);
+              g.rle_type == 0 ? "BDFONT_PLAIN" : "BDFONT_RLE", g.rle_type,
+              g.rle_type == 0 ? "" : "  ",
+              g.data_offset);
     }
 
     fprintf(out_, "};\n\n");
@@ -309,7 +317,7 @@ protected:
     }
 
     const bool should_use_compression
-      = std::min(c2_bytes, c4_bytes) < baseline_bytes;
+      = !plain_bytes_override_ && std::min(c2_bytes, c4_bytes) < baseline_bytes;
     // Only if 4-section compressor is better, use that; otherwise nibble
     // decompression is easier to do in head when reading data.
     RLECompressor *const best_compress = (c4_bytes < c2_bytes) ? &c4 : &c2;
@@ -369,6 +377,7 @@ private:
   FILE *const out_;
   const int offset_y_;
   const int stripes_;
+  const bool plain_bytes_override_;
 
   int last_stripe_;
   int min_x_, max_x_;
@@ -380,6 +389,7 @@ private:
 };
 
 static bool GenerateFontFile(const char *bdf_font, const char *fontname,
+                             bool plain_bytes,
                              const std::string& utf8_characters,
                              int chosen_baseline,
                              const std::string& directory) {
@@ -460,7 +470,7 @@ static bool GenerateFontFile(const char *bdf_font, const char *fontname,
           font.height(), font.baseline() - meta_collector.offset_y(),
           display_chars,
           fontname);
-  GlyphEmitter glyph_emitter(code_file,
+  GlyphEmitter glyph_emitter(code_file, plain_bytes,
                              meta_collector.offset_y(),
                              meta_collector.stripes());
   for (auto c : relevant_chars) {
@@ -526,9 +536,10 @@ int main(int argc, char *argv[]) {
   std::string directory = ".";
   bool create_support_files = false;
   std::string relevant_chars;
+  bool plain_bytes = false;
 
   int opt;
-  while ((opt = getopt(argc, argv, "b:d:sc:C:")) != -1) {
+  while ((opt = getopt(argc, argv, "b:d:sc:C:p")) != -1) {
     switch (opt) {
     case 'b':
       chosen_baseline = atoi(optarg);
@@ -541,6 +552,9 @@ int main(int argc, char *argv[]) {
       break;
     case 'c':
       relevant_chars = optarg;
+      break;
+    case 'p':
+      plain_bytes = true;
       break;
     case 'C':
       if (!ReadFileIntoString(optarg, &relevant_chars))
@@ -563,7 +577,8 @@ int main(int argc, char *argv[]) {
       fprintf(stderr, "Expected bdf-file and fontname\n");
       return usage(argv[0]);
     }
-    if (!GenerateFontFile(argv[optind], argv[optind+1], relevant_chars,
+    if (!GenerateFontFile(argv[optind], argv[optind+1], plain_bytes,
+                          relevant_chars,
                           chosen_baseline, directory)) {
       return 1;
     }

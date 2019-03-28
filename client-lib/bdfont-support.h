@@ -23,6 +23,19 @@
 extern "C" {
 #endif
 
+/*
+ * By default, bdfont uses runlength encoding techniques where appropriate,
+ * which in particular helps with large fonts. For smaller fonts with only
+ * few glyphs the code overhad to support decoding RLE (~90 bytes on AVR) can
+ * sometimes be larger than the data savings, so it is possible to choose
+ * emitting only plain bytes at code generation time (option -p for
+ * bdfont-data-gen); then you can set -DBDFONT_USE_RLE=0 at compile time of
+ * the target program.
+ */
+#ifndef BDFONT_USE_RLE
+#  define BDFONT_USE_RLE 1
+#endif
+
 #include <stdint.h>
 
 /* Some of the fields in these types are stable and can be used in code,
@@ -100,6 +113,85 @@ uint8_t bdfont_emit_glyph(const struct FontData *font, uint16_t codepoint,
 #  define _bdfont_data_unpack_memory(Type, variable) do {} while(0)
 #endif
 
+#define _BDFONT_INTERNAL_EMIT_GLYPH(font, codepoint,                    \
+                                    emit_empty_bytes, use_rle,          \
+                                    start_stripe_call, emit_call,       \
+                                    end_stripe_call)                    \
+  ({                                                                    \
+    int _return_glyph_width = 0;                                        \
+    const struct FontData *_font = (font);                              \
+    _bdfont_data_unpack_memory(struct FontData, _font);                 \
+    const struct GlyphData *_glyph = bdfont_find_glyph(_font, codepoint); \
+    if (_glyph != NULL) {                                               \
+      _bdfont_data_unpack_memory(struct GlyphData, _glyph);             \
+      const uint8_t *_bits = _font->bits + _glyph->data_offset;         \
+      const uint8_t _rle_mask = (_glyph->rle_type == 1) ? 0x0f : 0x03;  \
+      const uint8_t _rle_shift = (_glyph->rle_type == 1) ? 4 : 2;       \
+                                                                        \
+      uint8_t _stripe;                                                  \
+      uint8_t _x;                                                       \
+      _return_glyph_width = _glyph->width;                              \
+      const uint8_t glyph_width __attribute__((unused)) = _glyph->width; \
+      for (_stripe = 0; _stripe < _font->stripes; ++_stripe) {          \
+        const uint8_t stripe = _stripe;                                 \
+        do { start_stripe_call } while(0); /* contain break/continue */ \
+                                                                        \
+        /* Empty data for empty stripes */                              \
+        if (_stripe < _glyph->stripe_begin || _stripe >= _glyph->stripe_end) { \
+          if (emit_empty_bytes) {                                       \
+            for (_x = 0; _x < _glyph->width; ++_x) {                    \
+              const uint8_t b = 0x00;                                   \
+              const uint8_t __attribute__((unused)) x = _x;             \
+              do { emit_call } while(0); /* contain break/continue */   \
+            }                                                           \
+          }                                                             \
+          do { end_stripe_call } while(0);                              \
+          continue;                                                     \
+        }                                                               \
+                                                                        \
+        /* Stripes with data */                                         \
+        _x = 0;                                                         \
+        while (_x < _glyph->width) {                                    \
+          /* left and right margin are empty */                         \
+          if (_x < _glyph->left_margin ||                               \
+              _x >= _glyph->width - _glyph->right_margin) {             \
+            if (emit_empty_bytes) {                                     \
+              const uint8_t b = 0x00;                                   \
+              const uint8_t __attribute__((unused)) x = _x;             \
+              do { emit_call } while(0); /* contain break/continue */   \
+            }                                                           \
+            _x++;                                                       \
+            continue;                                                   \
+          }                                                             \
+                                                                        \
+          uint8_t _data_byte = _bdfont_data_get_bits(_bits++);          \
+                                                                        \
+          if (!(use_rle) || _glyph->rle_type == 0) {                    \
+            const uint8_t b = _data_byte;                               \
+            const uint8_t x __attribute__((unused)) = _x;               \
+            do { emit_call } while(0); /* contain break/continue */     \
+            _x++;                                                       \
+          } else {                                                      \
+            uint8_t _rlcounts;                                          \
+            for (_rlcounts=_data_byte; _rlcounts; _rlcounts >>= _rle_shift) { \
+              uint8_t _repetition_count = _rlcounts & _rle_mask;        \
+              _data_byte = _bdfont_data_get_bits(_bits++);              \
+              while (_repetition_count--) {                             \
+                const uint8_t b = _data_byte;                           \
+                const uint8_t x __attribute__((unused)) = _x;           \
+                do { emit_call } while(0); /* contain break/continue */ \
+                _x++;                                                   \
+              }                                                         \
+            }                                                           \
+          }                                                             \
+        }                                                               \
+        do { end_stripe_call } while(0); /* contain break/continue */   \
+      }                                                                 \
+    }                                                                   \
+    _return_glyph_width;                                                \
+  })                                                                    \
+
+
 /**
  * This is a macro version of the bdfont_emit_glyph() function call above.
  * It allows for somewhat more readable code that can also be smaller (if
@@ -151,80 +243,17 @@ uint8_t bdfont_emit_glyph(const struct FontData *font, uint16_t codepoint,
  */
 #define BDFONT_EMIT_GLYPH(font, codepoint, emit_empty_bytes,            \
                           start_stripe_call, emit_call, end_stripe_call) \
-  ({                                                                    \
-    int _return_glyph_width = 0;                                        \
-    const struct FontData *_font = (font);                              \
-    _bdfont_data_unpack_memory(struct FontData, _font);                 \
-    const struct GlyphData *_glyph = bdfont_find_glyph(_font, codepoint); \
-    if (_glyph != NULL) {                                               \
-      _bdfont_data_unpack_memory(struct GlyphData, _glyph);             \
-      const uint8_t *_bits = _font->bits + _glyph->data_offset;         \
-      const uint8_t _rle_mask = (_glyph->rle_type == 1) ? 0x0f : 0x03;  \
-      const uint8_t _rle_shift = (_glyph->rle_type == 1) ? 4 : 2;       \
-                                                                        \
-      uint8_t _stripe;                                                  \
-      uint8_t _x;                                                       \
-      _return_glyph_width = _glyph->width;                              \
-      const uint8_t glyph_width __attribute__((unused)) = _glyph->width; \
-      for (_stripe = 0; _stripe < _font->stripes; ++_stripe) {          \
-        const uint8_t stripe = _stripe;                                 \
-        do { start_stripe_call } while(0); /* contain break/continue */ \
-                                                                        \
-        /* Empty data for empty stripes */                              \
-        if (_stripe < _glyph->stripe_begin || _stripe >= _glyph->stripe_end) { \
-          if (emit_empty_bytes) {                                       \
-            for (_x = 0; _x < _glyph->width; ++_x) {                    \
-              const uint8_t b = 0x00;                                   \
-              const uint8_t __attribute__((unused)) x = _x;             \
-              do { emit_call } while(0); /* contain break/continue */   \
-            }                                                           \
-          }                                                             \
-          do { end_stripe_call } while(0);                              \
-          continue;                                                     \
-        }                                                               \
-                                                                        \
-        /* Stripes with data */                                         \
-        _x = 0;                                                         \
-        while (_x < _glyph->width) {                                    \
-          /* left and right margin are empty */                         \
-          if (_x < _glyph->left_margin ||                               \
-              _x >= _glyph->width - _glyph->right_margin) {             \
-            if (emit_empty_bytes) {                                     \
-              const uint8_t b = 0x00;                                   \
-              const uint8_t __attribute__((unused)) x = _x;             \
-              do { emit_call } while(0); /* contain break/continue */   \
-            }                                                           \
-            _x++;                                                       \
-            continue;                                                   \
-          }                                                             \
-                                                                        \
-          uint8_t _data_byte = _bdfont_data_get_bits(_bits++);          \
-                                                                        \
-          if (_glyph->rle_type == 0) {                                  \
-            const uint8_t b = _data_byte;                               \
-            const uint8_t x __attribute__((unused)) = _x;               \
-            do { emit_call } while(0); /* contain break/continue */     \
-            _x++;                                                       \
-          } else {                                                      \
-            uint8_t _rlcounts;                                          \
-            for (_rlcounts=_data_byte; _rlcounts; _rlcounts >>= _rle_shift) { \
-              uint8_t _repetition_count = _rlcounts & _rle_mask;        \
-              _data_byte = _bdfont_data_get_bits(_bits++);              \
-              while (_repetition_count--) {                             \
-                const uint8_t b = _data_byte;                           \
-                const uint8_t x __attribute__((unused)) = _x;           \
-                do { emit_call } while(0); /* contain break/continue */ \
-                _x++;                                                   \
-              }                                                         \
-            }                                                           \
-          }                                                             \
-        }                                                               \
-        do { end_stripe_call } while(0); /* contain break/continue */   \
-      }                                                                 \
-    }                                                                   \
-    _return_glyph_width;                                                \
-  })                                                                    \
+  _BDFONT_INTERNAL_EMIT_GLYPH(font, codepoint, emit_empty_bytes,        \
+                              BDFONT_USE_RLE,                           \
+                              start_stripe_call, emit_call, end_stripe_call)
 
+#if BDFONT_USE_RLE
+#  define BDFONT_RLE(x) .rle_type=x
+#  define BDFONT_PLAIN(x) .rle_type=x
+#else
+#  define BDFONT_RLE(x) only_plain_bytes_allowed_with_DBDFONT_USE_RLE_eq_0_Please_invoke_bdfont_data_gen_with_dash_p
+#  define BDFONT_PLAIN(x) .rle_type=x
+#endif
 
 #ifdef __cplusplus
 }

@@ -54,13 +54,16 @@ sudo make -C src install
 
 #### Invocation Synopsis
 ```
-usage: ./bdfont-data-gen [options] [<bdf-file> <fontname>]
+usage: bdfont-data-gen [options] [<bdf-file> <fontname>]
 Options:
   -c <inc-chars>: Characters to include in font. UTF8-string.
   -C <char-file>: Read characters to include from file.
   -d <directory>: Output files to given directory instead of ./
   -b <baseline> : Choose fixed baseline. This allows choice of pixel-exact vertical
                   alignment at compile-time vs. need for shifting at runtime.
+  -p            : Plain bytes. Don't use RLE compression. Might
+                  make (data+code) smaller if you set -DBDFONT_USE_RLE=0 to
+                  compile your project (typically only for tiny fonts)
   -s            : Create bdfont-support.{h,c} files.
 
 To generate font-code, two parameters are required:
@@ -86,6 +89,14 @@ easy to scroll text in X-direction; in y-direction only in
 multiples of 8 unless bit-shifting is applied.
 Fonts might need multiple of these stripes.
 Future versions of `bdfont-data-gen` might also create horizontal bitmaps.
+
+In some cases (with very small fonts and/or very few characters), it can be
+that the space-savings from the RLE encoding is eaten up by the additional
+code needed to decode it (~90 bytes on AVR). In that case, you can
+specify `-p` (for 'plain bytes') to `bdfont-data-gen` (this will increase
+the data size of the font) and use the `-DBDFONT_USE_RLE=0` define when
+compiling your target program (this will decrease the code size of the
+decoding).
 
 The [runtime-support](./client-lib/bdfont-support.h) provides functions and
 macros to access and decode the generated font.
