@@ -163,3 +163,10 @@ mybinary : mybinary.c font-smalltext.c
 font-%.c: %.chars
 	bdfont-data-gen -s $*.bdf $* -C $<
 ```
+
+## Samples from projects where it is used
+
+Spherometer                           | Clock
+--------------------------------------|-------------------------------
+[![Spherometer](./img/spherometer.jpg)](https://github.com/hzeller/digi-spherometer) | ![txtempus](./img/txtempus.jpg)
+This program runs on an Attiny85, so it was really necessary to get the font compact to stay within flash-limits. | This UI for txtempus runs on a Raspberry Pi, so here the convenience of having a compiled-in font was important.
