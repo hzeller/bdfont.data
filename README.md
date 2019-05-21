@@ -102,7 +102,9 @@ The [runtime-support](./client-lib/bdfont-support.h) provides functions and
 macros to access and decode the generated font.
 Finding a glyph in the font is provided by `bdfont_find_glyph()`.
 Decoding is done with either the `bdfont_emit_glyph()` function or the
-`BDFONT_EMIT_GLYPH()` macro.
+`BDFONT_EMIT_GLYPH()` macro. They take care of re-generating the uncompressed
+bytes from the internal representation, you only need to provide the
+code-snippet to write it into your frame-buffer.
 
 ```c
 /**
@@ -134,7 +136,7 @@ multiple times, you'll blow up the code-segment; applied thoughtfully, it can
 result in more readable code that allows (on AVR) in the order of >100 bytes
 space savings than the callback version.
 
-Simple ASCII Example:
+Simple example writing an ASCII string to a 128 byte wide frame-buffer:
 ```c
 int xpos = 0;
 uint8_t *write_pos;
@@ -145,6 +147,9 @@ for (const char *txt = "Hello World"; *txt; ++txt) {
 		            {});
 }
 ```
+(if you have UTF8 characters, you'd first of course separate out the 16-bit
+codepoints like in
+[this example](https://github.com/hzeller/digi-spherometer/blob/master/firmware/sh1106-display.cc#L139)).
 
 The generated code works with Harvard arch AVR PROGMEM as well as von-Neumann
 memory models (`#ifdef __AVR__` choses different code-variants).
@@ -164,26 +169,31 @@ font-%.c: %.chars
 	bdfont-data-gen -s $*.bdf $* -C $<
 ```
 
-## Example generated initializer
-Here is an example of generated code for a font that uses two stripes.
-The space-character is encoded in zero bitmap-bits for instance - there is
-nothing interesting going on.
+## Example generated data
+Here is an example of generated code for a font that uses two stripes. We
+can see the per-glyph selection of optimal encoding in action:
+the space-character is encoded in zero bitmap-bits for instance - there are no
+pixels to be set.
 
 For the `0`-character, plain bytes is the most efficient choice. `H` uses RLE
-encoding with a nibble encoding the run-length, while `Z` uses runlength
-encoding with 2 bit length encoding.
+encoding with a nibble encoding (= 4 bit) the run-length, while `Z`
+uses runlength encoding with four 2 bit length encoding (4 stored in one byte).
 
 The visual grouping of the emitted bytes allows to easily manually inspect
-the font (if you read hex for breakfast that is).
-Each stripe is given in a line of data.
-Nibble-encoded bits come in groups of three: 1 byte encoding the lengths,
-2 bytes with the corresponding data (Lower nibble
-encodes first count for first byte, upper nibble for second byte).
-Bytes that are repeated zero times are not included. Likewise, RLE/4 encoding
-comes in groups of 5: 1 byte containing 4 2-bit counts, followed by up to
-4 bytes.
+the font (if you read hex for breakfast that is):
 
-```
+ * Each stripe is given in a line of data.
+ * Nibble-encoded bits come in groups of three: 1 byte encoding the lengths,
+   2 bytes with the corresponding data (Lower nibble encodes first count for
+   first byte, upper nibble for second byte). Bytes that are repeated zero
+   times are not included.
+ * Likewise, RLE/4 encoding comes in groups of 5: 1 byte containing 4 2-bit
+   counts, followed by up to 4 bytes.
+ * Finally, a metadata block provides the information for each glyph, such as
+   16-bit codepoint, the width or margins as well as pointing into the bitmap
+   array.
+
+```c
 static const uint8_t PROGMEM _font_data_testfnt[] = {
   /* codepoint ' ' plain bytes */
 
@@ -198,7 +208,6 @@ static const uint8_t PROGMEM _font_data_testfnt[] = {
   /* codepoint 'Z' RLE/4 */
   0x55,0x81,0x41,0x21,0x11,  0x15,0x09,0x05,0x03,
   0x3d,0x03,0x02,0x02,
-
 };
 
 static const struct GlyphData PROGMEM _font_glyphs_testfnt[] = {
@@ -211,9 +220,19 @@ static const struct GlyphData PROGMEM _font_glyphs_testfnt[] = {
 /* ... */
 ```
 
+## FAQ
+
+**Q**: Can I use TTF fonts ?<br/>
+**A**: You first have to convert it to BDF.
+       TTF is arbitrary scale, therefore you first have to choose which size
+       you'd like, then generate a BDF bitmap font of that size using
+       e.g. the [`otf2bdf`][otf2bdf] tool.
+
 ## Samples from projects where it is used
 
 Spherometer                           | Clock
 --------------------------------------|-------------------------------
 [![Spherometer](./img/spherometer.jpg)](https://github.com/hzeller/digi-spherometer) | ![txtempus](./img/txtempus.jpg)
 This program runs on an Attiny85, so it was really necessary to get the font compact to stay within flash-limits. | This UI for txtempus runs on a Raspberry Pi, so here the convenience of having a compiled-in font was important.
+
+[otf2bdf]: http://sofia.nmsu.edu/~mleisher/Software/otf2bdf/
