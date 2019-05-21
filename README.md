@@ -164,6 +164,53 @@ font-%.c: %.chars
 	bdfont-data-gen -s $*.bdf $* -C $<
 ```
 
+## Example generated initializer
+Here is an example of generated code for a font that uses two stripes.
+The space-character is encoded in zero bitmap-bits for instance - there is
+nothing interesting going on.
+
+For the `0`-character, plain bytes is the most efficient choice. `H` uses RLE
+encoding with a nibble encoding the run-length, while `Z` uses runlength
+encoding with 2 bit length encoding.
+
+The visual grouping of the emitted bytes allows to easily manually inspect
+the font (if you read hex for breakfast that is).
+Each stripe is given in a line of data.
+Nibble-encoded bits come in groups of three: 1 byte encoding the lengths,
+2 bytes with the corresponding data (Lower nibble
+encodes first count for first byte, upper nibble for second byte).
+Bytes that are repeated zero times are not included. Likewise, RLE/4 encoding
+comes in groups of 5: 1 byte containing 4 2-bit counts, followed by up to
+4 bytes.
+
+```
+static const uint8_t PROGMEM _font_data_testfnt[] = {
+  /* codepoint ' ' plain bytes */
+
+  /* codepoint '0' plain bytes */
+  0xfc,0x02,0x01,0x01,0x01,0x02,0xfc,
+  0x00,0x01,0x02,0x02,0x02,0x01,0x00,
+
+  /* codepoint 'H' RLE/nibble */
+  0x51,0xff,0x10,  0x01,0xff,
+  0x51,0x03,0x00,  0x01,0x03,
+
+  /* codepoint 'Z' RLE/4 */
+  0x55,0x81,0x41,0x21,0x11,  0x15,0x09,0x05,0x03,
+  0x3d,0x03,0x02,0x02,
+
+};
+
+static const struct GlyphData PROGMEM _font_glyphs_testfnt[] = {
+  {.codepoint = ' ',    .width= 9, .stripe_begin=1, .stripe_end=0, .left_margin=0, .right_margin=0, BDFONT_PLAIN(0), .data_offset=   0},
+  {.codepoint = '0',    .width= 9, .stripe_begin=0, .stripe_end=2, .left_margin=1, .right_margin=1, BDFONT_PLAIN(0), .data_offset=   0},
+  {.codepoint = 'H',    .width= 9, .stripe_begin=0, .stripe_end=2, .left_margin=1, .right_margin=1, BDFONT_RLE(1)  , .data_offset=  14},
+  {.codepoint = 'Z',    .width= 9, .stripe_begin=0, .stripe_end=2, .left_margin=1, .right_margin=1, BDFONT_RLE(2)  , .data_offset=  24},
+};
+
+/* ... */
+```
+
 ## Samples from projects where it is used
 
 Spherometer                           | Clock
