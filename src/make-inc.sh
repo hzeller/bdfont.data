@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 while [ $# -ne 0 ]; do
     FILENAME=$1
