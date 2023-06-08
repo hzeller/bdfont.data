@@ -235,4 +235,9 @@ Spherometer                           | Clock
 [![Spherometer](./img/spherometer.jpg)](https://github.com/hzeller/digi-spherometer) | ![txtempus](./img/txtempus.jpg)
 This program runs on an Attiny85, so it was really necessary to get the font compact to stay within flash-limits. | This UI for txtempus runs on a Raspberry Pi, so here the convenience of having a compiled-in font was important.
 
-[otf2bdf]: http://sofia.nmsu.edu/~mleisher/Software/otf2bdf/
+## Converting to BDF
+The `otf2bdf` tool is a very simple tool that takes a TTF file and converts it to BDF.
+It used to be at http://sofia.nmsu.edu/~mleisher/Software/otf2bdf/, now mirrored at https://github.com/jirutka/otf2bdf
+
+[otf2bdf]: https://github.com/jirutka/otf2bdf
+
