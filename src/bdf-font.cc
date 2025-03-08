@@ -176,8 +176,8 @@ int Font::DrawGlyph(BitCanvas *c, int x_pos, int y_pos, bool inverse,
     const rowbitmap_t row = g->bitmap[y];
     rowbitmap_t x_mask = (1LL<<63);
     for (int x = 0; x < g->device_width; ++x, x_mask >>= 1) {
-      if (inverse) c->SetPixel(x_pos + x, y_pos + y, true);
       if (row & x_mask) c->SetPixel(x_pos + x, y_pos + y, !inverse);
+      else if (inverse) c->SetPixel(x_pos + x, y_pos + y, true);
     }
   }
   return g->device_width;
