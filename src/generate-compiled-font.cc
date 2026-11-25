@@ -72,9 +72,12 @@ static constexpr char kCodeHeader[] =
 
 static int usage(const char *prog) {
   fprintf(stderr, "usage: %s [options] [<bdf-file> <fontname>]\n", prog);
-  fprintf(stderr, "Options:\n"
+  fprintf(stderr,
+          "Options:\n"
           "  -c <inc-chars>: Characters to include in font. UTF8-string.\n"
+          "                  (can be given multiple times to add more).\n"
           "  -C <char-file>: Read characters to include from file.\n"
+          "                  (multiple -C <file> will collect all of them)\n"
           "  -d <directory>: Output files to given directory instead of ./\n"
           "  -b <baseline> : Choose fixed baseline. This allows "
           "choice of pixel-exact vertical\n"
@@ -556,15 +559,17 @@ int main(int argc, char *argv[]) {
       create_support_files = true;
       break;
     case 'c':
-      relevant_chars = optarg;
+      relevant_chars += optarg;
       break;
     case 'p':
       plain_bytes = true;
       break;
-    case 'C':
-      if (!ReadFileIntoString(optarg, &relevant_chars))
-        return usage(argv[0]);
+    case 'C': {
+      std::string new_chars;
+      if (!ReadFileIntoString(optarg, &new_chars)) return usage(argv[0]);
+      relevant_chars += new_chars;
       break;
+    }
       // TODO: provide regex-pattern to include relevant chars "[0-9][a-zA-Z]"
     default:
       return usage(argv[0]);
@@ -592,7 +597,7 @@ int main(int argc, char *argv[]) {
   if (!any_operation) {
     fprintf(stderr, "No operation selected.\n"
             " * Supply font-parameters to create compilable font files\n"
-            " * Use -s to generate support files\n"
+            " * Use -s to generate support files\n\n"
             );
     return usage(argv[0]);
   }

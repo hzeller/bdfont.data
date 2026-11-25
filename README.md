@@ -1,7 +1,5 @@
-Putting BDF into the `.data` segment
-====================================
-
-(Note, this a somewhat hacky tool I use for personal projects; provided AS-IS).
+Putting compressed BDF into the `.data` segment
+================================================
 
 Simple tool to generate bitmap-fonts to be compiled into static data C-structs
 from BDF fonts, including support functions to access them.
@@ -9,6 +7,9 @@ from BDF fonts, including support functions to access them.
 The focus is to generate a somewhat compact representation of fonts suited
 for embedded systems with little flash memory. In particular larger fonts
 benefit a lot from this.
+
+Mostly used in projects using the classic SSD1309/SH1106 OLED display with
+veritical byte alignment, but can easily be used in other applications as well.
 
 ### Compaction
 
@@ -54,10 +55,12 @@ sudo make -C src install
 
 #### Invocation Synopsis
 ```
-usage: bdfont-data-gen [options] [<bdf-file> <fontname>]
+usage: ./bdfont-data-gen [options] [<bdf-file> <fontname>]
 Options:
   -c <inc-chars>: Characters to include in font. UTF8-string.
+                  (can be given multiple times to add more).
   -C <char-file>: Read characters to include from file.
+                  (multiple -C <file> will collect all of them)
   -d <directory>: Output files to given directory instead of ./
   -b <baseline> : Choose fixed baseline. This allows choice of pixel-exact vertical
                   alignment at compile-time vs. need for shifting at runtime.
@@ -149,7 +152,7 @@ for (const char *txt = "Hello World"; *txt; ++txt) {
 ```
 (if you have UTF8 characters, you'd first of course separate out the 16-bit
 codepoints like in
-[this example](https://github.com/hzeller/digi-spherometer/blob/master/firmware/sh1106-display.cc#L139)).
+[this example](https://github.com/hzeller/digi-spherometer/blob/74812c66913052227841c18d05e7b7e1676c3001/firmware/sh1106-display.cc#L140).
 
 The generated code works with Harvard arch AVR PROGMEM as well as von-Neumann
 memory models (`#ifdef __AVR__` choses different code-variants).
@@ -240,4 +243,3 @@ The `otf2bdf` tool is a very simple tool that takes a TTF file and converts it t
 It used to be at http://sofia.nmsu.edu/~mleisher/Software/otf2bdf/, now mirrored at https://github.com/jirutka/otf2bdf
 
 [otf2bdf]: https://github.com/jirutka/otf2bdf
-
